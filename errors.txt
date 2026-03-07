@@ -1,0 +1,21 @@
+app/(dashboard)/budgets/page.tsx(138,77): error TS2322: Type 'string' is not assignable to type '"Food"'.
+app/api/budgets/[id]/route.ts(7,5): error TS2345: Argument of type '(req: NextRequest, { params, userId }: { params: { id: string; }; userId: string; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ message: string; }>>' is not assignable to parameter of type '(req: NextRequest, context: { params: Record<string, string>; userId: string; }) => Promise<NextResponse<unknown>>'.
+  Types of parameters '__1' and 'context' are incompatible.
+    Type '{ params: Record<string, string>; userId: string; }' is not assignable to type '{ params: { id: string; }; userId: string; }'.
+      Types of property 'params' are incompatible.
+        Property 'id' is missing in type 'Record<string, string>' but required in type '{ id: string; }'.
+app/api/transactions/[id]/route.ts(20,5): error TS2345: Argument of type '(req: NextRequest, { params, userId }: { params: { id: string; }; userId: string; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ transaction: any; }>>' is not assignable to parameter of type '(req: NextRequest, context: { params: Record<string, string>; userId: string; }) => Promise<NextResponse<unknown>>'.
+  Types of parameters '__1' and 'context' are incompatible.
+    Type '{ params: Record<string, string>; userId: string; }' is not assignable to type '{ params: { id: string; }; userId: string; }'.
+      Types of property 'params' are incompatible.
+        Property 'id' is missing in type 'Record<string, string>' but required in type '{ id: string; }'.
+app/api/transactions/[id]/route.ts(41,5): error TS2345: Argument of type '(req: NextRequest, { params, userId }: { params: { id: string; }; userId: string; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ transaction: any; }>>' is not assignable to parameter of type '(req: NextRequest, context: { params: Record<string, string>; userId: string; }) => Promise<NextResponse<unknown>>'.
+  Types of parameters '__1' and 'context' are incompatible.
+    Type '{ params: Record<string, string>; userId: string; }' is not assignable to type '{ params: { id: string; }; userId: string; }'.
+      Types of property 'params' are incompatible.
+        Property 'id' is missing in type 'Record<string, string>' but required in type '{ id: string; }'.
+app/api/transactions/[id]/route.ts(79,5): error TS2345: Argument of type '(req: NextRequest, { params, userId }: { params: { id: string; }; userId: string; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ message: string; }>>' is not assignable to parameter of type '(req: NextRequest, context: { params: Record<string, string>; userId: string; }) => Promise<NextResponse<unknown>>'.
+  Types of parameters '__1' and 'context' are incompatible.
+    Type '{ params: Record<string, string>; userId: string; }' is not assignable to type '{ params: { id: string; }; userId: string; }'.
+      Types of property 'params' are incompatible.
+        Property 'id' is missing in type 'Record<string, string>' but required in type '{ id: string; }'.
