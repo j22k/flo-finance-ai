@@ -1,7 +1,7 @@
 import { ChatAction, ActionResult } from '@/types/chat'
-import { connectDB } from './mongodb'
-import { Transaction } from '@/models/Transaction'
-import { Budget } from '@/models/Budget'
+import connectDB from './mongodb'
+import Transaction from '@/models/Transaction'
+import Budget from '@/models/Budget'
 
 export async function executeChatAction(action: ChatAction, userId: string): Promise<ActionResult> {
     await connectDB()
