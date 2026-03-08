@@ -2,17 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/middleware'
 import { streamChat, parseActionFromResponse } from '@/lib/gemini'
 import { buildFinancialContext } from '@/lib/financialContext'
+import { createParser } from 'eventsource-parser'
 import User from '@/models/User'
 
 export const POST = withAuth(async (req: NextRequest, { userId }) => {
     try {
         const { messages, contextWindow } = await req.json()
 
-        // Fetch user for name
         const user = await User.findById(userId)
         const userName = user?.name || 'User'
-
-        // Build context
         const context = await buildFinancialContext(userId, userName)
         const todayDate = new Date().toISOString().split('T')[0]
 
@@ -63,29 +61,40 @@ Current page context: ${contextWindow || 'Dashboard'}
 Today's date: ${todayDate}
 `
 
-        const geminiStream = await streamChat(systemPrompt, messages)
+        const responseStream = await streamChat(systemPrompt, messages)
+        if (!responseStream) throw new Error('No response stream from AI')
 
         const encoder = new TextEncoder()
+        const decoder = new TextDecoder()
         let fullText = ''
 
         const readable = new ReadableStream({
             async start(controller) {
-                try {
-                    // @ts-ignore
-                    for await (const chunk of geminiStream.stream) {
-                        const textChunk = chunk.text()
-                        fullText += textChunk
-                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: textChunk })}\n\n`))
+                const parser = createParser({
+                    onEvent: (event) => {
+                        try {
+                            if (event.data === '[DONE]') return
+                            const data = JSON.parse(event.data)
+                            const textChunk = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+                            if (textChunk) {
+                                fullText += textChunk
+                                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: textChunk })}\n\n`))
+                            }
+                        } catch (e) {
+                            // Some chunks might just be heartbeats or metadata, ignore parse errors for those
+                        }
                     }
+                })
 
-                    // Parse actions
-                    const action = parseActionFromResponse(fullText)
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, action })}\n\n`))
-                    controller.close()
-                } catch (err) {
-                    console.error('Streaming error:', err)
-                    controller.error(err)
+                // @ts-ignore - responseStream is a ReadableStream<Uint8Array>
+                for await (const chunk of responseStream) {
+                    parser.feed(decoder.decode(chunk))
                 }
+
+                // Final action parsing
+                const action = parseActionFromResponse(fullText)
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, action })}\n\n`))
+                controller.close()
             }
         })
 
@@ -99,13 +108,9 @@ Today's date: ${todayDate}
     } catch (error: any) {
         console.error('Chat API Error:', error)
         const errorMessage = error.message || 'Internal server error'
-        const status = error.status || 500
-
-        // Surface specific AI errors (like expired keys) to the user
-        if (errorMessage.includes('API key') || errorMessage.includes('expired')) {
+        if (errorMessage.includes('API key') || errorMessage.includes('expired') || errorMessage.includes('400')) {
             return NextResponse.json({ error: 'AI Provider Error: Your Gemini API key appears to be invalid or expired. Please check your .env.local file.' }, { status: 400 })
         }
-
-        return NextResponse.json({ error: errorMessage }, { status })
+        return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
 })
