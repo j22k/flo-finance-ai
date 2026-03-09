@@ -30,7 +30,7 @@ export default function ChatWidget() {
     }, [isOpen, hasPrompted])
 
     return (
-        <div className="fixed bottom-6 right-6 z-[1000] flex flex-col items-end pointer-events-none">
+        <div className="fixed bottom-12 right-6 z-[1000] flex flex-col items-end pointer-events-none">
             {/* Chat Panel */}
             {isOpen && (
                 <div className="mb-4 w-[90vw] h-[70vh] max-w-[400px] max-h-[600px] pointer-events-auto animate-in slide-in-from-bottom-5 duration-300">
