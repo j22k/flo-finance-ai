@@ -76,6 +76,11 @@ export function useChat(contextWindow?: string) {
                         setStreamingContent(accumulated)
                     }
 
+                    if (data.thinking) {
+                        // We could show a specific "Thinking..." state here
+                        // For now we'll just log it or handle it in a way that doesn't break
+                    }
+
                     if (data.done) {
                         finalAction = data.action
                     }

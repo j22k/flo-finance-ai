@@ -1,53 +1,39 @@
-import { createParser } from 'eventsource-parser'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 export async function streamChat(
     systemPrompt: string,
     messages: Array<{ role: 'user' | 'model' | 'assistant'; content: string }>
 ) {
-    const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()
+    const rawKey = process.env.FLO_GEMINI_API_KEY || process.env.GEMINI_API_KEY || ''
+    const apiKey = rawKey.trim().replace(/^["']|["']$/g, '')
 
     if (!apiKey) {
-        throw new Error('Gemini API Key is missing. Please add GEMINI_API_KEY to your .env.local')
+        throw new Error('Gemini API Key is missing. Please add FLO_GEMINI_API_KEY to your .env.local')
     }
+    const genAI = new GoogleGenerativeAI(apiKey)
 
-    const model = 'gemini-1.5-flash-latest'
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`
-
-    const contents = messages.map(msg => ({
-        role: msg.role === 'assistant' || msg.role === 'model' ? 'model' : 'user',
+    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash'
+    const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt
+    })
+    const history = messages.slice(0, -1).map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : msg.role,
         parts: [{ text: msg.content }]
     }))
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey
+    const lastMessage = messages[messages.length - 1].content
+
+    const chat = model.startChat({
+        history,
+        generationConfig: {
+            maxOutputTokens: 2048,
+            temperature: 0.7,
         },
-        body: JSON.stringify({
-            contents,
-            system_instruction: {
-                parts: [{ text: systemPrompt }]
-            },
-            generation_config: {
-                maxOutputTokens: 2048,
-                temperature: 0.7
-            }
-        })
     })
 
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        console.error('[Flo AI] Gemini API Error Response:', JSON.stringify(errorData, null, 2))
-
-        if (response.status === 429) {
-            throw new Error('Flo is currently busy (Rate limit reached). Please wait a few seconds.')
-        }
-
-        throw new Error(errorData.error?.message || `API Error: ${response.status}`)
-    }
-
-    return response.body
+    const result = await chat.sendMessageStream(lastMessage)
+    return result.stream
 }
 
 export async function ask(
@@ -55,34 +41,28 @@ export async function ask(
     userMessage: string,
     maxTokens = 512
 ) {
-    const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()
-    const model = 'gemini-1.5-flash-latest'
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
+    const apiKey = (process.env.FLO_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim().replace(/^["']|["']$/g, '')
+    if (!apiKey) {
+        throw new Error('Gemini API Key is missing. Please add FLO_GEMINI_API_KEY to your .env.local')
+    }
+    const genAI = new GoogleGenerativeAI(apiKey)
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-            system_instruction: {
-                parts: [{ text: systemPrompt }]
-            },
-            generation_config: {
-                maxOutputTokens: maxTokens,
-                temperature: 0.7
-            }
-        })
+    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash'
+    const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt
     })
 
-    const data = await response.json()
-    if (!response.ok) {
-        throw new Error(data.error?.message || 'API Error')
-    }
+    const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+        generationConfig: {
+            maxOutputTokens: maxTokens,
+            temperature: 0.7
+        }
+    })
 
-    return data.candidates[0].content.parts[0].text
+    const response = await result.response
+    return response.text()
 }
 
 export function parseActionFromResponse(text: string) {

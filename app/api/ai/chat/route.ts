@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/middleware'
 import { streamChat, parseActionFromResponse } from '@/lib/gemini'
 import { buildFinancialContext } from '@/lib/financialContext'
-import { createParser } from 'eventsource-parser'
+import connectDB from '@/lib/mongodb'
 import User from '@/models/User'
 
 export const POST = withAuth(async (req: NextRequest, { userId }) => {
     try {
+        await connectDB()
         const { messages, contextWindow } = await req.json()
 
         const user = await User.findById(userId)
@@ -65,36 +66,44 @@ Today's date: ${todayDate}
         if (!responseStream) throw new Error('No response stream from AI')
 
         const encoder = new TextEncoder()
-        const decoder = new TextDecoder()
         let fullText = ''
 
         const readable = new ReadableStream({
             async start(controller) {
-                const parser = createParser({
-                    onEvent: (event) => {
-                        try {
-                            if (event.data === '[DONE]') return
-                            const data = JSON.parse(event.data)
-                            const textChunk = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-                            if (textChunk) {
-                                fullText += textChunk
-                                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: textChunk })}\n\n`))
+                try {
+                    for await (const chunk of responseStream) {
+                        const parts = chunk.candidates?.[0]?.content?.parts
+
+                        if (parts) {
+                            for (const part of parts) {
+                                // Handle regular text
+                                if (part.text) {
+                                    fullText += part.text
+                                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: part.text })}\n\n`))
+                                }
+
+                                // Handle thinking process (if present in new models)
+                                if ((part as any).thought) {
+                                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ thinking: true, thought: (part as any).text })}\n\n`))
+                                }
+
+                                // Handle thought signature (from the user's curl output)
+                                if ((part as any).thoughtSignature) {
+                                    console.log('DEBUG: Thought Signature received:', (part as any).thoughtSignature)
+                                    // You could also stream this if the frontend needs it
+                                }
                             }
-                        } catch (e) {
-                            // Some chunks might just be heartbeats or metadata, ignore parse errors for those
                         }
                     }
-                })
 
-                // @ts-ignore - responseStream is a ReadableStream<Uint8Array>
-                for await (const chunk of responseStream) {
-                    parser.feed(decoder.decode(chunk))
+                    // Final action parsing
+                    const action = parseActionFromResponse(fullText)
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, action })}\n\n`))
+                } catch (e) {
+                    console.error('Streaming error:', e)
+                } finally {
+                    controller.close()
                 }
-
-                // Final action parsing
-                const action = parseActionFromResponse(fullText)
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, action })}\n\n`))
-                controller.close()
             }
         })
 
