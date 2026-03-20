@@ -4,10 +4,14 @@ import { useState } from 'react'
 import { Plus, Search, Edit2, Trash2, Filter } from 'lucide-react'
 import { format } from 'date-fns'
 import { useTransactions } from '@/hooks/useTransactions'
+import { useCategories } from '@/hooks/useCategories'
 import { Transaction, CATEGORIES } from '@/types'
 import TransactionForm from '@/components/TransactionForm'
 
 export default function TransactionsPage() {
+    const { categories } = useCategories()
+    const allCategories = Array.from(new Set([...CATEGORIES, ...categories.map(c => c.name)]))
+    
     const [typeFilter, setTypeFilter] = useState<string>('all')
     const [categoryFilter, setCategoryFilter] = useState<string>('all')
     const [monthFilter, setMonthFilter] = useState<number>(new Date().getMonth() + 1)
@@ -110,7 +114,7 @@ export default function TransactionsPage() {
 
                     <select className="flo-select w-full sm:w-[160px] py-1.5 px-2.5" value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}>
                         <option value="all">All Categories</option>
-                        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                        {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
 
                     <select className="flo-select w-full sm:w-[130px] py-1.5 px-2.5" value={monthFilter} onChange={(e) => { setMonthFilter(Number(e.target.value)); setPage(1); }}>

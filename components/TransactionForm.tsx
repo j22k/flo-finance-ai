@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, TrendingUp, TrendingDown } from 'lucide-react'
+import { X, TrendingUp, TrendingDown, Plus } from 'lucide-react'
 import { Transaction, CATEGORIES } from '@/types'
 import { format } from 'date-fns'
+import { useCategories } from '@/hooks/useCategories'
 
 interface TransactionFormProps {
     onSubmit: (data: Omit<Transaction, '_id' | 'createdAt'>) => Promise<void>
@@ -12,7 +13,14 @@ interface TransactionFormProps {
 }
 
 export default function TransactionForm({ onSubmit, onClose, initialData }: TransactionFormProps) {
+    const { categories, fetchCategories } = useCategories()
     const [type, setType] = useState<'income' | 'expense'>(initialData?.type || 'expense')
+    
+    // Derived categories for the current type
+    const availableCategories = categories.filter(c => c.type === type).map(c => c.name)
+    const baseCategories = CATEGORIES.filter(c => type === 'expense' ? c !== 'Salary' && c !== 'Freelance' && c !== 'Investment' : c === 'Salary' || c === 'Freelance' || c === 'Investment')
+    const options = Array.from(new Set([...baseCategories, ...availableCategories]))
+
     const [formData, setFormData] = useState({
         title: initialData?.title || '',
         amount: initialData?.amount?.toString() || '',
@@ -153,15 +161,18 @@ export default function TransactionForm({ onSubmit, onClose, initialData }: Tran
                         {/* Category */}
                         <div style={{ gridColumn: '1 / -1' }}>
                             <label className="flo-label">Category</label>
-                            <select
-                                className="flo-select"
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                            >
-                                {CATEGORIES.map((cat) => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <select
+                                    className="flo-select"
+                                    style={{ flex: 1 }}
+                                    value={formData.category}
+                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                >
+                                    {options.map((cat) => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
 
                         {/* Note */}

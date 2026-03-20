@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Waves, LayoutDashboard, ArrowLeftRight, PiggyBank, BarChart3, LogOut } from 'lucide-react'
+import { Waves, LayoutDashboard, ArrowLeftRight, PiggyBank, BarChart3, LogOut, Tags } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import toast from 'react-hot-toast'
 
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { href: '/transactions', icon: ArrowLeftRight, label: 'Transactions' },
     { href: '/budgets', icon: PiggyBank, label: 'Budgets' },
+    { href: '/categories', icon: Tags, label: 'Categories' },
     { href: '/analytics', icon: BarChart3, label: 'Analytics' },
 ]
 

@@ -12,7 +12,10 @@ export async function streamChat(
     }
     const genAI = new GoogleGenerativeAI(apiKey)
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash'
+    const modelName = (process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest').trim().replace(/^["']|["']$/g, '')
+
+    console.log(`[AI] Initializing model: ${modelName}`)
+
     const model = genAI.getGenerativeModel({
         model: modelName,
         systemInstruction: systemPrompt
@@ -47,7 +50,7 @@ export async function ask(
     }
     const genAI = new GoogleGenerativeAI(apiKey)
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash'
+    const modelName = (process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest').trim().replace(/^["']|["']$/g, '')
     const model = genAI.getGenerativeModel({
         model: modelName,
         systemInstruction: systemPrompt

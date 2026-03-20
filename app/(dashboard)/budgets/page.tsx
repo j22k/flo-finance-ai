@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { PiggyBank, Target, CalendarDays, Wallet } from 'lucide-react'
 import { useBudgets } from '@/hooks/useBudgets'
+import { useCategories } from '@/hooks/useCategories'
 import { CATEGORIES } from '@/types'
 import BudgetCard from '@/components/BudgetCard'
 import api from '@/lib/api'
@@ -18,6 +19,11 @@ export default function BudgetsPage() {
         month: selectedMonth,
         year: selectedYear,
     })
+    
+    const { categories } = useCategories()
+    const availableCategories = categories.filter(c => c.type === 'expense').map(c => c.name)
+    const baseCategories = CATEGORIES.filter(c => c !== 'Salary' && c !== 'Freelance' && c !== 'Investment')
+    const options = Array.from(new Set([...baseCategories, ...availableCategories]))
 
     // To calculate progress, we need the expenses for this month per category
     const [expenses, setExpenses] = useState<Record<string, number>>({})
@@ -135,7 +141,7 @@ export default function BudgetsPage() {
                                 value={formData.category}
                                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                             >
-                                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                {options.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                         </div>
 

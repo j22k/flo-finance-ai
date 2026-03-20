@@ -46,6 +46,15 @@ export interface CategoryStat {
   percentage: number
 }
 
+export interface UserCategory {
+  _id: string
+  name: string
+  type: 'income' | 'expense'
+  color?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface PaginatedTransactions {
   transactions: Transaction[]
   total: number
