@@ -9,7 +9,124 @@ import api from '@/lib/api'
 import { MonthlySummary, CategoryStat } from '@/types'
 
 // A simple local LineChart component for the Savings Trend
-import { LineChart as ReLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { LineChart as ReLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
+
+function CumulativeSavingsChart({ data }: { data: MonthlySummary[] }) {
+    let cumulative = 0
+    const chartData = data.map(d => {
+        cumulative += d.savings
+        return {
+            ...d,
+            cumulative
+        }
+    })
+
+    const CustomTooltip = ({ active, payload, label }: any) => {
+        if (active && payload && payload.length) {
+            const val = payload[0].value
+            const color = val >= 0 ? 'var(--income)' : 'var(--expense)'
+            return (
+                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 16px', fontSize: '0.85rem' }}>
+                    <p style={{ color: 'var(--muted)', marginBottom: '8px', fontWeight: 600 }}>{label}</p>
+                    <p style={{ color, fontWeight: 700 }}>
+                        Wealth: <span className="amount">₹{val.toLocaleString()}</span>
+                    </p>
+                </div>
+            )
+        }
+        return null
+    }
+
+    return (
+        <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                    <linearGradient id="colorWealth" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#7c6af7" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#7c6af7" stopOpacity={0}/>
+                    </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,42,61,0.8)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: '#8888aa', fontSize: 12 }} axisLine={{ stroke: 'var(--border)' }} tickLine={false} />
+                <YAxis tick={{ fill: '#8888aa', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                <ReTooltip content={<CustomTooltip />} />
+                <ReferenceLine y={0} stroke="rgba(255,107,138,0.5)" strokeDasharray="3 3" />
+                <Area
+                    type="monotone"
+                    dataKey="cumulative"
+                    stroke="#7c6af7"
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#colorWealth)"
+                    activeDot={{ r: 7, fill: '#7c6af7', stroke: '#13131a', strokeWidth: 2 }}
+                />
+            </AreaChart>
+        </ResponsiveContainer>
+    )
+}
+
+function NeedsVsWantsChart({ data }: { data: CategoryStat[] }) {
+    // 50/30/20 heuristic mapping for common default categories
+    const needsCategories = ['Housing', 'Transport', 'Health', 'Utilities', 'Food', 'Groceries', 'Insurance']
+    const wantsCategories = ['Entertainment', 'Shopping', 'Dining', 'Hobbies', 'Personal']
+    
+    let needs = 0
+    let wants = 0
+    let other = 0
+
+    data.forEach(item => {
+        if (needsCategories.some(c => item.category.toLowerCase().includes(c.toLowerCase()))) {
+            needs += item.total
+        } else if (wantsCategories.some(c => item.category.toLowerCase().includes(c.toLowerCase()))) {
+            wants += item.total
+        } else {
+            other += item.total
+        }
+    })
+
+    const chartData = [
+        { name: 'Needs (50%)', value: needs, color: '#4ecdc4' },
+        { name: 'Wants (30%)', value: wants, color: '#ff6b8a' },
+        { name: 'Other/Savings', value: other, color: '#ffd93d' }
+    ].filter(d => d.value > 0)
+
+    if (!chartData.length) return <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>No data</div>
+
+    const CustomTooltip = ({ active, payload }: any) => {
+        if (active && payload && payload.length) {
+            return (
+                <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 16px', fontSize: '0.85rem' }}>
+                    <p style={{ color: payload[0].payload.color, fontWeight: 700 }}>
+                        {payload[0].name}: <span className="amount">₹{payload[0].value.toLocaleString()}</span>
+                    </p>
+                </div>
+            )
+        }
+        return null
+    }
+
+    return (
+        <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+                <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={70}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                    stroke="none"
+                >
+                    {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                </Pie>
+                <ReTooltip content={<CustomTooltip />} />
+            </PieChart>
+        </ResponsiveContainer>
+    )
+}
 
 function SavingsTrendChart({ data }: { data: MonthlySummary[] }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -189,12 +306,38 @@ export default function AnalyticsPage() {
                         <div className="flo-card flex-1 w-full overflow-x-auto min-w-[300px]">
                             <div className="flex items-center gap-2 mb-6">
                                 <div className="bg-[rgba(124,106,247,0.1)] p-1.5 rounded-lg">
+                                    <TrendingUp size={18} color="var(--accent)" />
+                                </div>
+                                <h2 className="text-[1.2rem] font-bold">Cumulative Wealth Growth</h2>
+                            </div>
+                            <div className="min-w-[500px] h-[260px]">
+                                <CumulativeSavingsChart data={summary} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col xl:flex-row gap-6 mb-6">
+                        <div className="flo-card flex-1 w-full overflow-x-auto min-w-[300px]">
+                            <div className="flex items-center gap-2 mb-6">
+                                <div className="bg-[rgba(124,106,247,0.1)] p-1.5 rounded-lg">
                                     <Activity size={18} color="var(--accent)" />
                                 </div>
                                 <h2 className="text-[1.2rem] font-bold">Savings Trend</h2>
                             </div>
                             <div className="min-w-[500px] h-[260px]">
                                 <SavingsTrendChart data={summary} />
+                            </div>
+                        </div>
+
+                        <div className="flo-card flex-1 w-full min-w-[300px]">
+                            <div className="flex items-center gap-2 mb-6">
+                                <div className="bg-[rgba(78,205,196,0.1)] p-1.5 rounded-lg">
+                                    <PieChartIcon size={18} color="#4ecdc4" />
+                                </div>
+                                <h2 className="text-[1.2rem] font-bold">Needs vs Wants Split</h2>
+                            </div>
+                            <div className="h-[260px]">
+                                <NeedsVsWantsChart data={categories} />
                             </div>
                         </div>
                     </div>
