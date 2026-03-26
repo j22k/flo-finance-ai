@@ -28,6 +28,13 @@ export default function TransactionForm({ onSubmit, onClose, initialData }: Tran
         date: initialData?.date ? format(new Date(initialData.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         note: initialData?.note || '',
     })
+
+    const optionsStr = options.join(',')
+    useEffect(() => {
+        if (options.length > 0 && !options.includes(formData.category)) {
+            setFormData((prev) => ({ ...prev, category: options[0] }))
+        }
+    }, [optionsStr, formData.category])
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [loading, setLoading] = useState(false)
 
