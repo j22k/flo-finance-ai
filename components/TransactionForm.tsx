@@ -27,6 +27,8 @@ export default function TransactionForm({ onSubmit, onClose, initialData }: Tran
         category: initialData?.category || CATEGORIES[0],
         date: initialData?.date ? format(new Date(initialData.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         note: initialData?.note || '',
+        isLent: initialData?.isLent || false,
+        repaid: initialData?.repaid || false,
     })
 
     const optionsStr = options.join(',')
@@ -61,6 +63,8 @@ export default function TransactionForm({ onSubmit, onClose, initialData }: Tran
                 category: formData.category,
                 date: formData.date,
                 note: formData.note || undefined,
+                isLent: formData.isLent,
+                repaid: formData.repaid,
             } as Omit<Transaction, '_id' | 'createdAt'>)
             onClose()
         } catch {
@@ -192,6 +196,33 @@ export default function TransactionForm({ onSubmit, onClose, initialData }: Tran
                                 onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                             />
                         </div>
+
+                        {/* Lent Status */}
+                        {type === 'expense' && (
+                            <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '16px', background: 'var(--surface2)', padding: '12px', borderRadius: '10px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.875rem' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.isLent}
+                                        onChange={(e) => setFormData({ ...formData, isLent: e.target.checked })}
+                                        style={{ width: '18px', height: '18px', accentColor: 'var(--accent)' }}
+                                    />
+                                    <span>Lent to someone</span>
+                                </label>
+
+                                {formData.isLent && (
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.875rem' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.repaid}
+                                            onChange={(e) => setFormData({ ...formData, repaid: e.target.checked })}
+                                            style={{ width: '18px', height: '18px', accentColor: 'var(--income)' }}
+                                        />
+                                        <span>Repaid</span>
+                                    </label>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>

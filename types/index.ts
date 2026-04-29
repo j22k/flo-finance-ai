@@ -12,6 +12,8 @@ export interface Transaction {
   category: string
   date: string
   note?: string
+  isLent?: boolean
+  repaid?: boolean
   createdAt: string
 }
 
@@ -46,6 +48,21 @@ export interface CategoryStat {
   percentage: number
 }
 
+export interface LentStats {
+  totalLent: number
+  totalRepaid: number
+  pendingAmount: number
+  pendingCount: number
+  repaidCount: number
+  recentLent: {
+    _id: string
+    title: string
+    amount: number
+    date: string
+    repaid: boolean
+  }[]
+}
+
 export interface UserCategory {
   _id: string
   name: string
@@ -74,6 +91,7 @@ export const CATEGORIES = [
   'Investment',
   'Education',
   'Utilities',
+  'Lent',
   'Other',
 ] as const
 

@@ -6,7 +6,8 @@ import StatCard from '@/components/StatCard'
 import BarChartComponent from '@/components/charts/BarChart'
 import PieChartComponent from '@/components/charts/PieChart'
 import api from '@/lib/api'
-import { MonthlySummary, CategoryStat } from '@/types'
+import { MonthlySummary, CategoryStat, LentStats } from '@/types'
+import { Wallet as WalletIcon, CheckCircle2, Clock } from 'lucide-react'
 
 // A simple local LineChart component for the Savings Trend
 import { LineChart as ReLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
@@ -203,20 +204,24 @@ export default function AnalyticsPage() {
     const currentMonth = new Date().getMonth() + 1
 
     const [year, setYear] = useState(currentYear)
+    const [month, setMonth] = useState(currentMonth)
     const [summary, setSummary] = useState<MonthlySummary[]>([])
     const [categories, setCategories] = useState<CategoryStat[]>([])
+    const [lentStats, setLentStats] = useState<LentStats | null>(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const fetchAnalytics = async () => {
             setLoading(true)
             try {
-                const [sumRes, catRes] = await Promise.all([
+                const [sumRes, catRes, lentRes] = await Promise.all([
                     api.get(`/api/analytics/summary?year=${year}`),
-                    api.get(`/api/analytics/categories?month=${currentMonth}&year=${currentYear}`)
+                    api.get(`/api/analytics/categories?month=${month}&year=${year}`),
+                    api.get('/api/analytics/lent')
                 ])
                 setSummary(sumRes.data.months)
                 setCategories(catRes.data.categories)
+                setLentStats(lentRes.data)
             } catch (err) {
                 console.error('Failed to fetch analytics', err)
             } finally {
@@ -224,7 +229,7 @@ export default function AnalyticsPage() {
             }
         }
         fetchAnalytics()
-    }, [year, currentMonth, currentYear])
+    }, [year, month])
 
     const yearlyTotals = summary.reduce(
         (acc, curr) => {
@@ -237,6 +242,20 @@ export default function AnalyticsPage() {
     )
 
     const YEARS = [currentYear - 2, currentYear - 1, currentYear]
+    const MONTHS = [
+        { value: 1, label: 'January' },
+        { value: 2, label: 'February' },
+        { value: 3, label: 'March' },
+        { value: 4, label: 'April' },
+        { value: 5, label: 'May' },
+        { value: 6, label: 'June' },
+        { value: 7, label: 'July' },
+        { value: 8, label: 'August' },
+        { value: 9, label: 'September' },
+        { value: 10, label: 'October' },
+        { value: 11, label: 'November' },
+        { value: 12, label: 'December' },
+    ]
 
     return (
         <div>
@@ -245,13 +264,22 @@ export default function AnalyticsPage() {
                     <h1 className="text-[1.8rem] font-extrabold">Analytics</h1>
                     <p className="text-[var(--muted)] text-[0.875rem]">Deep dive into your financial patterns.</p>
                 </div>
-                <select
-                    className="flo-select w-full sm:w-[120px] py-2 px-3"
-                    value={year}
-                    onChange={(e) => setYear(Number(e.target.value))}
-                >
-                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
+                <div className="flex gap-2 w-full sm:w-auto">
+                    <select
+                        className="flo-select w-full sm:w-[140px] py-2 px-3"
+                        value={month}
+                        onChange={(e) => setMonth(Number(e.target.value))}
+                    >
+                        {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                    <select
+                        className="flo-select w-full sm:w-[100px] py-2 px-3"
+                        value={year}
+                        onChange={(e) => setYear(Number(e.target.value))}
+                    >
+                        {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                </div>
             </div>
 
             {/* Yearly Summary Cards */}
@@ -358,6 +386,66 @@ export default function AnalyticsPage() {
                         <div className="flo-card w-full xl:w-3/5 order-1 xl:order-2">
                             <h2 className="text-[1.2rem] font-bold mb-6">Top Expense Categories</h2>
                             <CategoryBarChart data={categories} />
+                        </div>
+                    </div>
+
+                    {/* Lent & Debts Section */}
+                    <div className="mt-8">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="bg-[rgba(124,106,247,0.1)] p-1.5 rounded-lg">
+                                <WalletIcon size={20} color="var(--accent)" />
+                            </div>
+                            <h2 className="text-[1.5rem] font-bold">Lent Money Status</h2>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-1 space-y-4">
+                                <div className="flo-card bg-gradient-to-br from-[rgba(78,205,196,0.05)] to-transparent">
+                                    <p className="text-[var(--muted)] text-sm mb-1">Total Lent</p>
+                                    <p className="text-2xl font-bold">₹{lentStats?.totalLent.toLocaleString()}</p>
+                                </div>
+                                <div className="flo-card bg-gradient-to-br from-[rgba(255,107,138,0.05)] to-transparent">
+                                    <p className="text-[var(--muted)] text-sm mb-1">Pending Return</p>
+                                    <p className="text-2xl font-bold text-[var(--expense)]">₹{lentStats?.pendingAmount.toLocaleString()}</p>
+                                    <p className="text-xs text-[var(--muted)] mt-2">{lentStats?.pendingCount} transactions pending</p>
+                                </div>
+                                <div className="flo-card bg-gradient-to-br from-[rgba(78,205,196,0.05)] to-transparent">
+                                    <p className="text-[var(--muted)] text-sm mb-1">Repaid So Far</p>
+                                    <p className="text-2xl font-bold text-[var(--income)]">₹{lentStats?.totalRepaid.toLocaleString()}</p>
+                                    <p className="text-xs text-[var(--muted)] mt-2">{lentStats?.repaidCount} transactions completed</p>
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-2 flo-card">
+                                <h3 className="text-lg font-semibold mb-4">Recently Lent</h3>
+                                {lentStats?.recentLent && lentStats.recentLent.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {lentStats.recentLent.map((item) => (
+                                            <div key={item._id} className="flex items-center justify-between p-3 rounded-xl bg-[var(--surface2)] border border-[var(--border)]">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-lg ${item.repaid ? 'bg-[rgba(78,205,196,0.1)]' : 'bg-[rgba(255,217,61,0.1)]'}`}>
+                                                        {item.repaid ? <CheckCircle2 size={16} color="var(--income)" /> : <Clock size={16} color="var(--warning)" />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-sm">{item.title}</p>
+                                                        <p className="text-xs text-[var(--muted)]">{new Date(item.date).toLocaleDateString()}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="font-bold">₹{item.amount.toLocaleString()}</p>
+                                                    <p className={`text-[10px] px-2 py-0.5 rounded-full inline-block ${item.repaid ? 'bg-[rgba(78,205,196,0.1)] text-[var(--income)]' : 'bg-[rgba(255,217,61,0.1)] text-[var(--warning)]'}`}>
+                                                        {item.repaid ? 'Repaid' : 'Pending'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="h-[200px] flex items-center justify-center text-[var(--muted)]">
+                                        No lent transactions found.
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </>

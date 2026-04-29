@@ -14,6 +14,8 @@ const updateSchema = z.object({
         .refine((v) => !isNaN(Date.parse(v)))
         .optional(),
     note: z.string().optional(),
+    isLent: z.boolean().optional(),
+    repaid: z.boolean().optional(),
 })
 
 export const GET = withAuth(

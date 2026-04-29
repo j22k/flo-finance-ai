@@ -8,6 +8,8 @@ export interface ITransaction extends Document {
     category: string
     date: Date
     note?: string
+    isLent?: boolean
+    repaid?: boolean
     createdAt: Date
     updatedAt: Date
 }
@@ -45,6 +47,14 @@ const transactionSchema = new Schema<ITransaction>(
         note: {
             type: String,
             trim: true,
+        },
+        isLent: {
+            type: Boolean,
+            default: false,
+        },
+        repaid: {
+            type: Boolean,
+            default: false,
         },
     },
     {
