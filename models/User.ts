@@ -5,6 +5,7 @@ export interface IUser extends Document {
     name: string
     email: string
     password: string
+    role: 'user' | 'admin'
     refreshTokenHash: string
     createdAt: Date
     updatedAt: Date
@@ -29,6 +30,11 @@ const userSchema = new Schema<IUser>(
             type: String,
             required: [true, 'Password is required'],
             minlength: 8,
+        },
+        role: {
+            type: String,
+            enum: ['user', 'admin'],
+            default: 'user',
         },
         refreshTokenHash: {
             type: String,

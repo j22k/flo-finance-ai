@@ -3,17 +3,17 @@ import jwt from 'jsonwebtoken'
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET!
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET!
 
-export function signAccessToken(userId: string): string {
-    return jwt.sign({ userId }, ACCESS_TOKEN_SECRET, { expiresIn: '15m' })
+export function signAccessToken(userId: string, role: string): string {
+    return jwt.sign({ userId, role }, ACCESS_TOKEN_SECRET, { expiresIn: '15m' })
 }
 
 export function signRefreshToken(userId: string): string {
     return jwt.sign({ userId }, REFRESH_TOKEN_SECRET, { expiresIn: '7d' })
 }
 
-export function verifyAccessToken(token: string): { userId: string } | null {
+export function verifyAccessToken(token: string): { userId: string, role: string } | null {
     try {
-        const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET) as { userId: string }
+        const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET) as { userId: string, role: string }
         return decoded
     } catch {
         return null

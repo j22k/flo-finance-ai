@@ -2,22 +2,26 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Waves, LayoutDashboard, ArrowLeftRight, PiggyBank, BarChart3, LogOut, Tags } from 'lucide-react'
+import { Waves, LayoutDashboard, ArrowLeftRight, PiggyBank, BarChart3, LogOut, Tags, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import toast from 'react-hot-toast'
-
-const NAV_ITEMS = [
-    { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { href: '/transactions', icon: ArrowLeftRight, label: 'Transactions' },
-    { href: '/budgets', icon: PiggyBank, label: 'Budgets' },
-    { href: '/categories', icon: Tags, label: 'Categories' },
-    { href: '/analytics', icon: BarChart3, label: 'Analytics' },
-]
 
 export default function Sidebar() {
     const pathname = usePathname()
     const router = useRouter()
     const { user, logout } = useAuth()
+
+    const navItems = [
+        { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+        { href: '/transactions', icon: ArrowLeftRight, label: 'Transactions' },
+        { href: '/budgets', icon: PiggyBank, label: 'Budgets' },
+        { href: '/categories', icon: Tags, label: 'Categories' },
+        { href: '/analytics', icon: BarChart3, label: 'Analytics' },
+    ]
+
+    if (user?.role === 'admin') {
+        navItems.push({ href: '/admin', icon: ShieldCheck, label: 'Admin' })
+    }
 
     const handleLogout = async () => {
         await logout()
@@ -53,7 +57,7 @@ export default function Sidebar() {
                 <p className="hidden md:block text-[0.7rem] font-bold text-[var(--muted)] uppercase tracking-widest px-2 mb-2">
                     Menu
                 </p>
-                {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+                {navItems.map(({ href, icon: Icon, label }) => {
                     const isActive = pathname === href
                     return (
                         <Link

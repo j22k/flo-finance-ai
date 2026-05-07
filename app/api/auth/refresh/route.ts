@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid or expired refresh token' }, { status: 401 })
         }
 
-        const accessToken = signAccessToken(user._id.toString())
+        const accessToken = signAccessToken(user._id.toString(), user.role)
 
         return NextResponse.json({ accessToken })
     } catch (error) {

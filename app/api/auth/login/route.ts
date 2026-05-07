@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
         }
 
-        const accessToken = signAccessToken(user._id.toString())
+        const accessToken = signAccessToken(user._id.toString(), user.role)
         const refreshToken = signRefreshToken(user._id.toString())
 
         // Store hashed refresh token
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
         const response = NextResponse.json({
             accessToken,
-            user: { id: user._id.toString(), name: user.name, email: user.email },
+            user: { id: user._id.toString(), name: user.name, email: user.email, role: user.role },
         })
 
         response.cookies.set('refreshToken', refreshToken, {
