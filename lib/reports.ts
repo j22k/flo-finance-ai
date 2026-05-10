@@ -59,6 +59,37 @@ export async function generateAndSendMonthlyReport(user: any, date: Date = new D
         const savings = income - expense
         const savingsRate = income > 0 ? ((savings / income) * 100).toFixed(1) : '0'
 
+        // Generate Chart Image URL (using QuickChart)
+        const chartConfig = {
+            type: 'doughnut',
+            data: {
+                labels: categoryResult.map(c => c._id),
+                datasets: [{
+                    data: categoryResult.map(c => c.total),
+                    backgroundColor: [
+                        '#7c6af7', '#4ecdc4', '#ff6b8a', '#ffd93d', 
+                        '#9d8ff9', '#6ee7b7', '#f43f5e', '#fbbf24'
+                    ],
+                    borderWidth: 1,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                legend: { 
+                    position: 'right',
+                    labels: { fontColor: '#6b7280', fontSize: 11 }
+                },
+                plugins: {
+                    datalabels: {
+                        display: true,
+                        color: '#fff',
+                        font: { weight: 'bold' }
+                    }
+                }
+            }
+        };
+        const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&w=500&h=300&bkg=white`;
+
         const html = `
             <!DOCTYPE html>
             <html>
@@ -157,6 +188,13 @@ export async function generateAndSendMonthlyReport(user: any, date: Date = new D
                         font-family: 'Courier New', Courier, monospace;
                         font-weight: 600;
                     }
+                    .chart-container {
+                        margin: 30px 0;
+                        text-align: center;
+                        padding: 20px;
+                        border: 1px solid #f3f4f6;
+                        border-radius: 8px;
+                    }
                     .footer {
                         margin-top: 60px;
                         padding-top: 20px;
@@ -179,17 +217,24 @@ export async function generateAndSendMonthlyReport(user: any, date: Date = new D
                 <div class="stats-container">
                     <div class="stat-item">
                         <div class="label">Total Income</div>
-                        <div class="value income-value">$${income.toLocaleString()}</div>
+                        <div class="value income-value">₹${income.toLocaleString()}</div>
                     </div>
                     <div class="stat-item">
                         <div class="label">Total Expenses</div>
-                        <div class="value expense-value">$${expense.toLocaleString()}</div>
+                        <div class="value expense-value">₹${expense.toLocaleString()}</div>
                     </div>
                     <div class="stat-item">
                         <div class="label">Net Savings</div>
-                        <div class="value" style="color: #7c6af7;">$${savings.toLocaleString()}</div>
+                        <div class="value" style="color: #7c6af7;">₹${savings.toLocaleString()}</div>
                     </div>
                 </div>
+
+                ${categoryResult.length > 0 ? `
+                    <div class="table-title">Expense Distribution</div>
+                    <div class="chart-container">
+                        <img src="${chartUrl}" alt="Expense Distribution Chart" style="max-width: 100%; height: auto;">
+                    </div>
+                ` : ''}
 
                 <div class="table-title">Spending by Category</div>
                 <table class="table">
@@ -203,7 +248,7 @@ export async function generateAndSendMonthlyReport(user: any, date: Date = new D
                         ${categoryResult.length > 0 ? categoryResult.map(c => `
                             <tr>
                                 <td>${c._id}</td>
-                                <td class="amount-col">$${c.total.toLocaleString()}</td>
+                                <td class="amount-col">₹${c.total.toLocaleString()}</td>
                             </tr>
                         `).join('') : `
                             <tr>
