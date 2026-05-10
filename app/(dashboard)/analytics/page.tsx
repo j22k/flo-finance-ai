@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BarChart3, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+import { BarChart3, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, Wallet, Mail, Loader2 } from 'lucide-react'
 import StatCard from '@/components/StatCard'
 import BarChartComponent from '@/components/charts/BarChart'
 import PieChartComponent from '@/components/charts/PieChart'
 import api from '@/lib/api'
 import { MonthlySummary, CategoryStat, LentStats } from '@/types'
 import { Wallet as WalletIcon, CheckCircle2, Clock } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 // A simple local LineChart component for the Savings Trend
 import { LineChart as ReLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
@@ -209,6 +210,20 @@ export default function AnalyticsPage() {
     const [categories, setCategories] = useState<CategoryStat[]>([])
     const [lentStats, setLentStats] = useState<LentStats | null>(null)
     const [loading, setLoading] = useState(true)
+    const [sendingEmail, setSendingEmail] = useState(false)
+
+    const handleSendEmail = async () => {
+        setSendingEmail(true)
+        try {
+            await api.post('/api/reports/email')
+            toast.success('Monthly report sent to your email!')
+        } catch (err) {
+            console.error('Failed to send email report', err)
+            toast.error('Failed to send email report. Check your Resend API key.')
+        } finally {
+            setSendingEmail(false)
+        }
+    }
 
     useEffect(() => {
         const fetchAnalytics = async () => {
@@ -265,6 +280,15 @@ export default function AnalyticsPage() {
                     <p className="text-[var(--muted)] text-[0.875rem]">Deep dive into your financial patterns.</p>
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
+                    <button 
+                        onClick={handleSendEmail}
+                        disabled={sendingEmail}
+                        className="btn-primary flex items-center gap-2 py-2 px-4 whitespace-nowrap"
+                        title="Send this month's report to your email"
+                    >
+                        {sendingEmail ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
+                        {sendingEmail ? 'Sending...' : 'Email Report'}
+                    </button>
                     <select
                         className="flo-select w-full sm:w-[140px] py-2 px-3"
                         value={month}
