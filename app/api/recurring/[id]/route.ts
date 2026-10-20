@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import connectDB from '@/lib/mongodb'
-import RecurringTransaction from '@/models/RecurringTransaction'
-import { withAuth } from '@/lib/middleware'
+import RecurringTransaction, { IRecurringTransaction } from '@/models/RecurringTransaction'
+import { withAuth, findOwned } from '@/lib/middleware'
 
 const updateSchema = z.object({
     title: z.string().min(1).trim().optional(),
@@ -22,15 +22,8 @@ export const PUT = withAuth(
     async (req: NextRequest, { params, userId }: { params: { id: string }; userId: string }) => {
         try {
             await connectDB()
-            const recurring = await RecurringTransaction.findById(params.id)
-
-            if (!recurring) {
-                return NextResponse.json({ error: 'Not found' }, { status: 404 })
-            }
-
-            if (recurring.userId.toString() !== userId) {
-                return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-            }
+            const { doc: recurring, error } = await findOwned<IRecurringTransaction>(RecurringTransaction, params.id, userId)
+            if (error) return error
 
             const body = await req.json()
             const validation = updateSchema.safeParse(body)
@@ -67,17 +60,10 @@ export const DELETE = withAuth(
     async (req: NextRequest, { params, userId }: { params: { id: string }; userId: string }) => {
         try {
             await connectDB()
-            const recurring = await RecurringTransaction.findById(params.id)
+            const { doc: recurring, error } = await findOwned<IRecurringTransaction>(RecurringTransaction, params.id, userId)
+            if (error) return error
 
-            if (!recurring) {
-                return NextResponse.json({ error: 'Not found' }, { status: 404 })
-            }
-
-            if (recurring.userId.toString() !== userId) {
-                return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-            }
-
-            await RecurringTransaction.findByIdAndDelete(params.id)
+            await RecurringTransaction.findByIdAndDelete(recurring._id)
             return NextResponse.json({ message: 'Deleted' })
         } catch (error) {
             return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

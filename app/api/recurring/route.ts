@@ -4,19 +4,24 @@ import connectDB from '@/lib/mongodb'
 import RecurringTransaction from '@/models/RecurringTransaction'
 import { withAuth } from '@/lib/middleware'
 
-const createSchema = z.object({
-    title: z.string().min(1, 'Title required').trim(),
-    amount: z.number().positive('Amount must be positive'),
-    type: z.enum(['income', 'expense']),
-    category: z.string().min(1, 'Category required'),
-    note: z.string().optional(),
-    frequency: z.enum(['weekly', 'monthly', 'yearly']),
-    startDate: z.string().refine((v) => !isNaN(Date.parse(v)), 'Invalid date'),
-    endDate: z
-        .string()
-        .refine((v) => !isNaN(Date.parse(v)))
-        .optional(),
-})
+const createSchema = z
+    .object({
+        title: z.string().min(1, 'Title required').trim(),
+        amount: z.number().positive('Amount must be positive'),
+        type: z.enum(['income', 'expense']),
+        category: z.string().min(1, 'Category required'),
+        note: z.string().optional(),
+        frequency: z.enum(['weekly', 'monthly', 'yearly']),
+        startDate: z.string().refine((v) => !isNaN(Date.parse(v)), 'Invalid date'),
+        endDate: z
+            .string()
+            .refine((v) => !isNaN(Date.parse(v)))
+            .optional(),
+    })
+    .refine((data) => !data.endDate || new Date(data.endDate) >= new Date(data.startDate), {
+        message: 'End date must be on or after the start date',
+        path: ['endDate'],
+    })
 
 export const GET = withAuth(async (req: NextRequest, { userId }) => {
     try {

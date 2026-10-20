@@ -43,8 +43,11 @@ export default function DashboardPage() {
                 setCategories(catRes.data.categories)
                 setRecentTransactions(txRes.data.transactions)
 
+                // Includes overdue bills (negative days) too — if the daily
+                // cron hasn't caught up yet, the bill should still show as
+                // due rather than silently disappearing from the widget.
                 const upcoming = (recurringRes.data.recurring as RecurringTransaction[])
-                    .filter((r) => r.isActive && differenceInCalendarDays(new Date(r.nextRunDate), now) <= 7 && differenceInCalendarDays(new Date(r.nextRunDate), now) >= 0)
+                    .filter((r) => r.isActive && differenceInCalendarDays(new Date(r.nextRunDate), now) <= 7)
                     .sort((a, b) => new Date(a.nextRunDate).getTime() - new Date(b.nextRunDate).getTime())
                 setUpcomingBills(upcoming)
             } catch (err) {
@@ -154,8 +157,8 @@ export default function DashboardPage() {
                                         <span className="badge badge-category">{bill.category}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
-                                            {daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `In ${daysUntil} days`}
+                                        <span style={{ fontSize: '0.75rem', color: daysUntil < 0 ? 'var(--expense)' : 'var(--muted)', fontWeight: daysUntil < 0 ? 600 : 400 }}>
+                                            {daysUntil < 0 ? `Overdue by ${-daysUntil} day${daysUntil === -1 ? '' : 's'}` : daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `In ${daysUntil} days`}
                                         </span>
                                         <span className="amount" style={{ fontWeight: 700, color: bill.type === 'income' ? 'var(--income)' : 'var(--expense)' }}>
                                             {bill.type === 'income' ? '+' : '-'}₹{bill.amount.toLocaleString()}

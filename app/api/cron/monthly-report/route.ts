@@ -7,7 +7,7 @@ import { subMonths } from 'date-fns'
 export async function GET(req: NextRequest) {
     // 1. Verify Cron Secret
     const authHeader = req.headers.get('authorization')
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         return new Response('Unauthorized', { status: 401 })
     }
 

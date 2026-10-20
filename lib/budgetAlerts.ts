@@ -46,24 +46,31 @@ export async function checkAndSendBudgetAlerts(date: Date = new Date()) {
         if (!user) continue
 
         if (percentage >= 100 && !budget.alert100SentAt) {
-            await sendEmail({
+            const { success } = await sendEmail({
                 to: user.email,
                 subject: `Budget exceeded: ${budget.category}`,
                 html: `<p>Hello ${user.name},</p><p>You've spent <strong>₹${spent.toLocaleString()}</strong> on <strong>${budget.category}</strong> this month, exceeding your budget of ₹${budget.limitAmount.toLocaleString()}.</p>`,
             })
-            budget.alert80SentAt = budget.alert80SentAt || new Date()
-            budget.alert100SentAt = new Date()
-            await budget.save()
-            alertsSent++
+            // Only mark as sent if it actually sent — sendEmail swallows its own
+            // errors and resolves {success:false} instead of throwing, so an
+            // unchecked stamp here would permanently suppress a failed alert.
+            if (success) {
+                budget.alert80SentAt = budget.alert80SentAt || new Date()
+                budget.alert100SentAt = new Date()
+                await budget.save()
+                alertsSent++
+            }
         } else if (percentage >= 80 && !budget.alert80SentAt) {
-            await sendEmail({
+            const { success } = await sendEmail({
                 to: user.email,
                 subject: `Budget alert: ${budget.category} at ${Math.round(percentage)}%`,
                 html: `<p>Hello ${user.name},</p><p>You've spent <strong>₹${spent.toLocaleString()}</strong> on <strong>${budget.category}</strong> this month — ${Math.round(percentage)}% of your ₹${budget.limitAmount.toLocaleString()} budget.</p>`,
             })
-            budget.alert80SentAt = new Date()
-            await budget.save()
-            alertsSent++
+            if (success) {
+                budget.alert80SentAt = new Date()
+                await budget.save()
+                alertsSent++
+            }
         }
     }
 

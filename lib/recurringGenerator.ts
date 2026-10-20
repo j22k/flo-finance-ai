@@ -1,14 +1,18 @@
 import connectDB from './mongodb'
 import RecurringTransaction from '@/models/RecurringTransaction'
 import Transaction from '@/models/Transaction'
-import { addWeeks, addMonths, addYears } from 'date-fns'
+import { addWeeks, addMonths, addYears, setDate, getDaysInMonth } from 'date-fns'
 
 const MAX_CATCHUP_ITERATIONS = 365
 
-function advance(date: Date, frequency: 'weekly' | 'monthly' | 'yearly'): Date {
+// anchorDay keeps a monthly/yearly cadence pinned to the day-of-month the
+// template started on. Without it, repeatedly calling addMonths on a date
+// that got clamped (e.g. Jan 31 -> Feb 28) never recovers on later months
+// that do have 31 days — the billing day would permanently drift to 28.
+function advance(date: Date, frequency: 'weekly' | 'monthly' | 'yearly', anchorDay: number): Date {
     if (frequency === 'weekly') return addWeeks(date, 1)
-    if (frequency === 'yearly') return addYears(date, 1)
-    return addMonths(date, 1)
+    const next = frequency === 'yearly' ? addYears(date, 1) : addMonths(date, 1)
+    return setDate(next, Math.min(anchorDay, getDaysInMonth(next)))
 }
 
 export async function generateDueRecurringTransactions(today: Date = new Date()) {
@@ -22,6 +26,7 @@ export async function generateDueRecurringTransactions(today: Date = new Date())
     for (const recurring of due) {
         templatesProcessed++
         let guard = 0
+        const anchorDay = recurring.startDate.getDate()
 
         while (recurring.nextRunDate <= today && guard < MAX_CATCHUP_ITERATIONS) {
             if (recurring.endDate && recurring.nextRunDate > recurring.endDate) {
@@ -40,7 +45,7 @@ export async function generateDueRecurringTransactions(today: Date = new Date())
             })
             transactionsCreated++
 
-            recurring.nextRunDate = advance(recurring.nextRunDate, recurring.frequency)
+            recurring.nextRunDate = advance(recurring.nextRunDate, recurring.frequency, anchorDay)
             guard++
         }
 

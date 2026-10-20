@@ -5,7 +5,7 @@ import { checkAndSendBudgetAlerts } from '@/lib/budgetAlerts'
 
 export async function GET(req: NextRequest) {
     const authHeader = req.headers.get('authorization')
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         return new Response('Unauthorized', { status: 401 })
     }
 
@@ -17,6 +17,15 @@ export async function GET(req: NextRequest) {
             generateDueRecurringTransactions(now),
             checkAndSendBudgetAlerts(now),
         ])
+
+        // Promise.allSettled never rejects, so a failed branch wouldn't
+        // otherwise reach the catch block below or get logged anywhere.
+        if (recurringResult.status === 'rejected') {
+            console.error('Daily cron: recurring generation failed:', recurringResult.reason)
+        }
+        if (alertResult.status === 'rejected') {
+            console.error('Daily cron: budget alert check failed:', alertResult.reason)
+        }
 
         return NextResponse.json({
             message: 'Daily cron completed',

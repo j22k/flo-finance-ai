@@ -10,6 +10,7 @@ import api from '@/lib/api'
 import { MonthlySummary, CategoryStat, LentStats, DailySpend } from '@/types'
 import { Wallet as WalletIcon, CheckCircle2, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { subMonths } from 'date-fns'
 
 // A simple local LineChart component for the Savings Trend
 import { LineChart as ReLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
@@ -287,8 +288,9 @@ export default function AnalyticsPage() {
         }
     }
 
-    const prevMonth = month === 1 ? 12 : month - 1
-    const prevYear = month === 1 ? year - 1 : year
+    const prevMonthDate = subMonths(new Date(year, month - 1, 1), 1)
+    const prevMonth = prevMonthDate.getMonth() + 1
+    const prevYear = prevMonthDate.getFullYear()
 
     useEffect(() => {
         const fetchAnalytics = async () => {
