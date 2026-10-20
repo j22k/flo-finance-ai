@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { TrendingUp, TrendingDown, Wallet, Percent, ArrowRight, ChevronRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, Percent, ArrowRight, ChevronRight, Repeat, CalendarClock } from 'lucide-react'
 import StatCard from '@/components/StatCard'
 import AreaChartComponent from '@/components/charts/AreaChart'
 import PieChartComponent from '@/components/charts/PieChart'
 import api from '@/lib/api'
-import { DashboardStats, MonthlySummary, CategoryStat, Transaction } from '@/types'
-import { format } from 'date-fns'
+import { DashboardStats, MonthlySummary, CategoryStat, Transaction, RecurringTransaction } from '@/types'
+import { format, differenceInCalendarDays } from 'date-fns'
 import { useAuth } from '@/context/AuthContext'
 
 function LoadingPulse() {
@@ -23,6 +23,7 @@ export default function DashboardPage() {
     const [summary, setSummary] = useState<MonthlySummary[]>([])
     const [categories, setCategories] = useState<CategoryStat[]>([])
     const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([])
+    const [upcomingBills, setUpcomingBills] = useState<RecurringTransaction[]>([])
     const [loading, setLoading] = useState(true)
 
     const now = new Date()
@@ -30,16 +31,22 @@ export default function DashboardPage() {
     useEffect(() => {
         const fetchAll = async () => {
             try {
-                const [statsRes, summaryRes, catRes, txRes] = await Promise.all([
+                const [statsRes, summaryRes, catRes, txRes, recurringRes] = await Promise.all([
                     api.get('/api/analytics/dashboard'),
                     api.get(`/api/analytics/summary?year=${now.getFullYear()}`),
                     api.get(`/api/analytics/categories?month=${now.getMonth() + 1}&year=${now.getFullYear()}`),
                     api.get('/api/transactions?limit=5'),
+                    api.get('/api/recurring'),
                 ])
                 setStats(statsRes.data)
                 setSummary(summaryRes.data.months)
                 setCategories(catRes.data.categories)
                 setRecentTransactions(txRes.data.transactions)
+
+                const upcoming = (recurringRes.data.recurring as RecurringTransaction[])
+                    .filter((r) => r.isActive && differenceInCalendarDays(new Date(r.nextRunDate), now) <= 7 && differenceInCalendarDays(new Date(r.nextRunDate), now) >= 0)
+                    .sort((a, b) => new Date(a.nextRunDate).getTime() - new Date(b.nextRunDate).getTime())
+                setUpcomingBills(upcoming)
             } catch (err) {
                 console.error('Dashboard fetch error:', err)
             } finally {
@@ -123,6 +130,43 @@ export default function DashboardPage() {
                     {loading ? <div className="h-[260px]"><LoadingPulse /></div> : <PieChartComponent data={categories} />}
                 </div>
             </div>
+
+            {/* Upcoming Bills */}
+            {!loading && upcomingBills.length > 0 && (
+                <div className="flo-card mb-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <div className="bg-[rgba(124,106,247,0.1)] p-1.5 rounded-lg">
+                            <Repeat size={18} color="var(--accent)" />
+                        </div>
+                        <div>
+                            <h2 className="text-[1rem] font-bold">Upcoming Bills</h2>
+                            <p className="text-[var(--muted)] text-[0.8rem]">Recurring charges due in the next 7 days</p>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {upcomingBills.map((bill) => {
+                            const daysUntil = differenceInCalendarDays(new Date(bill.nextRunDate), now)
+                            return (
+                                <div key={bill._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '10px', background: 'var(--surface2)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <CalendarClock size={14} color="var(--muted)" />
+                                        <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{bill.title}</span>
+                                        <span className="badge badge-category">{bill.category}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
+                                            {daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `In ${daysUntil} days`}
+                                        </span>
+                                        <span className="amount" style={{ fontWeight: 700, color: bill.type === 'income' ? 'var(--income)' : 'var(--expense)' }}>
+                                            {bill.type === 'income' ? '+' : '-'}₹{bill.amount.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Recent Transactions */}
             <div className="flo-card overflow-x-auto">

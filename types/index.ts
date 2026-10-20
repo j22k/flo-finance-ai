@@ -82,6 +82,20 @@ export interface Goal {
   createdAt: string
 }
 
+export interface RecurringTransaction {
+  _id: string
+  title: string
+  amount: number
+  type: 'income' | 'expense'
+  category: string
+  note?: string
+  frequency: 'weekly' | 'monthly' | 'yearly'
+  startDate: string
+  nextRunDate: string
+  endDate?: string
+  isActive: boolean
+}
+
 export interface DailySpend {
   day: number
   total: number
