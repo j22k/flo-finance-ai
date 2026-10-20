@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BarChart3, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, Wallet, Mail, Loader2 } from 'lucide-react'
+import { BarChart3, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, Wallet, Mail, Loader2, ArrowUp, ArrowDown, Sparkles } from 'lucide-react'
 import StatCard from '@/components/StatCard'
 import BarChartComponent from '@/components/charts/BarChart'
 import PieChartComponent from '@/components/charts/PieChart'
+import SpendingCalendar from '@/components/SpendingCalendar'
 import api from '@/lib/api'
-import { MonthlySummary, CategoryStat, LentStats } from '@/types'
+import { MonthlySummary, CategoryStat, LentStats, DailySpend } from '@/types'
 import { Wallet as WalletIcon, CheckCircle2, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -200,6 +201,65 @@ function CategoryBarChart({ data }: { data: CategoryStat[] }) {
     )
 }
 
+interface Mover {
+    category: string
+    current: number
+    previous: number
+    change: number
+    percentChange: number | null
+}
+
+function computeMovers(current: CategoryStat[], previous: CategoryStat[]): Mover[] {
+    const prevMap = new Map(previous.map(p => [p.category, p.total]))
+    const curMap = new Map(current.map(c => [c.category, c.total]))
+    const categories = new Set(Array.from(prevMap.keys()).concat(Array.from(curMap.keys())))
+
+    return Array.from(categories)
+        .map((category) => {
+            const curr = curMap.get(category) || 0
+            const prev = prevMap.get(category) || 0
+            const change = curr - prev
+            const percentChange = prev > 0 ? Math.round((change / prev) * 100) : (curr > 0 ? null : 0)
+            return { category, current: curr, previous: prev, change, percentChange }
+        })
+        .filter(m => m.change !== 0)
+        .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+        .slice(0, 5)
+}
+
+function BiggestMovers({ movers }: { movers: Mover[] }) {
+    if (!movers.length) {
+        return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>No change from last month</div>
+    }
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {movers.map((m) => {
+                const isUp = m.change > 0
+                const color = isUp ? 'var(--expense)' : 'var(--income)'
+                return (
+                    <div key={m.category} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '10px', background: 'var(--surface2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ background: isUp ? 'rgba(255,107,138,0.1)' : 'rgba(78,205,196,0.1)', padding: '6px', borderRadius: '8px' }}>
+                                {isUp ? <ArrowUp size={14} color={color} /> : <ArrowDown size={14} color={color} />}
+                            </div>
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{m.category}</span>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                            <span className="amount" style={{ fontWeight: 700, color, fontSize: '0.85rem' }}>
+                                {isUp ? '+' : '-'}₹{Math.abs(m.change).toLocaleString()}
+                            </span>
+                            <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: 'var(--muted)' }}>
+                                {m.percentChange === null ? 'New' : `${isUp ? '+' : ''}${m.percentChange}%`}
+                            </span>
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
+    )
+}
+
 export default function AnalyticsPage() {
     const currentYear = new Date().getFullYear()
     const currentMonth = new Date().getMonth() + 1
@@ -208,6 +268,8 @@ export default function AnalyticsPage() {
     const [month, setMonth] = useState(currentMonth)
     const [summary, setSummary] = useState<MonthlySummary[]>([])
     const [categories, setCategories] = useState<CategoryStat[]>([])
+    const [prevCategories, setPrevCategories] = useState<CategoryStat[]>([])
+    const [dailySpend, setDailySpend] = useState<DailySpend[]>([])
     const [lentStats, setLentStats] = useState<LentStats | null>(null)
     const [loading, setLoading] = useState(true)
     const [sendingEmail, setSendingEmail] = useState(false)
@@ -225,18 +287,25 @@ export default function AnalyticsPage() {
         }
     }
 
+    const prevMonth = month === 1 ? 12 : month - 1
+    const prevYear = month === 1 ? year - 1 : year
+
     useEffect(() => {
         const fetchAnalytics = async () => {
             setLoading(true)
             try {
-                const [sumRes, catRes, lentRes] = await Promise.all([
+                const [sumRes, catRes, prevCatRes, lentRes, calRes] = await Promise.all([
                     api.get(`/api/analytics/summary?year=${year}`),
                     api.get(`/api/analytics/categories?month=${month}&year=${year}`),
-                    api.get('/api/analytics/lent')
+                    api.get(`/api/analytics/categories?month=${prevMonth}&year=${prevYear}`),
+                    api.get('/api/analytics/lent'),
+                    api.get(`/api/analytics/calendar?month=${month}&year=${year}`),
                 ])
                 setSummary(sumRes.data.months)
                 setCategories(catRes.data.categories)
+                setPrevCategories(prevCatRes.data.categories)
                 setLentStats(lentRes.data)
+                setDailySpend(calRes.data.days)
             } catch (err) {
                 console.error('Failed to fetch analytics', err)
             } finally {
@@ -255,6 +324,8 @@ export default function AnalyticsPage() {
         },
         { income: 0, expense: 0, savings: 0 }
     )
+
+    const movers = computeMovers(categories, prevCategories)
 
     const YEARS = [currentYear - 2, currentYear - 1, currentYear]
     const MONTHS = [
@@ -410,6 +481,31 @@ export default function AnalyticsPage() {
                         <div className="flo-card w-full xl:w-3/5 order-1 xl:order-2">
                             <h2 className="text-[1.2rem] font-bold mb-6">Top Expense Categories</h2>
                             <CategoryBarChart data={categories} />
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col xl:flex-row gap-6 mb-6">
+                        <div className="flo-card flex-1 w-full min-w-[300px]">
+                            <div className="flex items-center gap-2 mb-6">
+                                <div className="bg-[rgba(124,106,247,0.1)] p-1.5 rounded-lg">
+                                    <Sparkles size={18} color="var(--accent)" />
+                                </div>
+                                <h2 className="text-[1.2rem] font-bold">Biggest Movers</h2>
+                            </div>
+                            <p className="text-[var(--muted)] text-[0.8rem] mb-4">
+                                Compared to {MONTHS.find(m => m.value === prevMonth)?.label} {prevYear}
+                            </p>
+                            <BiggestMovers movers={movers} />
+                        </div>
+
+                        <div className="flo-card flex-1 w-full overflow-x-auto min-w-[300px]">
+                            <div className="flex items-center gap-2 mb-6">
+                                <div className="bg-[rgba(255,217,61,0.1)] p-1.5 rounded-lg">
+                                    <Activity size={18} color="var(--warning)" />
+                                </div>
+                                <h2 className="text-[1.2rem] font-bold">Spending Calendar</h2>
+                            </div>
+                            <SpendingCalendar days={dailySpend} month={month} year={year} />
                         </div>
                     </div>
 

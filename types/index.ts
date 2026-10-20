@@ -64,6 +64,12 @@ export interface LentStats {
   }[]
 }
 
+export interface DailySpend {
+  day: number
+  total: number
+  count: number
+}
+
 export interface UserCategory {
   _id: string
   name: string
