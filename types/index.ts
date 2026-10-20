@@ -66,6 +66,22 @@ export interface LentStats {
   }[]
 }
 
+export interface GoalContribution {
+  amount: number
+  date: string
+  note?: string
+}
+
+export interface Goal {
+  _id: string
+  title: string
+  targetAmount: number
+  targetDate: string
+  currentAmount: number
+  contributions: GoalContribution[]
+  createdAt: string
+}
+
 export interface DailySpend {
   day: number
   total: number

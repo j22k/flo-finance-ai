@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Waves, LayoutDashboard, ArrowLeftRight, PiggyBank, BarChart3, LogOut, Tags, ShieldCheck } from 'lucide-react'
+import { Waves, LayoutDashboard, ArrowLeftRight, PiggyBank, BarChart3, LogOut, Tags, ShieldCheck, Target, Repeat } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import toast from 'react-hot-toast'
 
@@ -15,6 +15,8 @@ export default function Sidebar() {
         { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { href: '/transactions', icon: ArrowLeftRight, label: 'Transactions' },
         { href: '/budgets', icon: PiggyBank, label: 'Budgets' },
+        { href: '/goals', icon: Target, label: 'Goals' },
+        { href: '/recurring', icon: Repeat, label: 'Recurring' },
         { href: '/categories', icon: Tags, label: 'Categories' },
         { href: '/analytics', icon: BarChart3, label: 'Analytics' },
     ]
