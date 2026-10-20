@@ -6,6 +6,8 @@ export interface IBudget extends Document {
     limitAmount: number
     month: number
     year: number
+    alert80SentAt?: Date | null
+    alert100SentAt?: Date | null
     createdAt: Date
     updatedAt: Date
 }
@@ -35,6 +37,14 @@ const budgetSchema = new Schema<IBudget>(
         year: {
             type: Number,
             required: true,
+        },
+        alert80SentAt: {
+            type: Date,
+            default: null,
+        },
+        alert100SentAt: {
+            type: Date,
+            default: null,
         },
     },
     {

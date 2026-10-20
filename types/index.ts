@@ -24,6 +24,8 @@ export interface Budget {
   limitAmount: number
   month: number
   year: number
+  alert80SentAt?: string | null
+  alert100SentAt?: string | null
 }
 
 export interface DashboardStats {

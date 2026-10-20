@@ -48,9 +48,19 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
 
         const { category, limitAmount, month, year } = validation.data
 
+        const existing = await Budget.findOne({ userId, category, month, year })
+        const limitChanged = existing && existing.limitAmount !== limitAmount
+
         const budget = await Budget.findOneAndUpdate(
             { userId, category, month, year },
-            { userId, category, limitAmount, month, year },
+            {
+                userId,
+                category,
+                limitAmount,
+                month,
+                year,
+                ...(limitChanged ? { alert80SentAt: null, alert100SentAt: null } : {}),
+            },
             { upsert: true, new: true }
         )
 

@@ -19,6 +19,13 @@ export default function BudgetCard({ budget, spent, onDelete }: BudgetCardProps)
     const progressColor = isOver || percentage > 85 ? 'progress-red' : percentage > 60 ? 'progress-yellow' : 'progress-green'
     const statusColor = isOver || percentage > 85 ? 'var(--expense)' : percentage > 60 ? 'var(--warning)' : 'var(--income)'
 
+    const now = new Date()
+    const isCurrentMonth = budget.month === now.getMonth() + 1 && budget.year === now.getFullYear()
+    const daysElapsed = now.getDate()
+    const daysInMonth = new Date(budget.year, budget.month, 0).getDate()
+    const projected = isCurrentMonth && spent > 0 ? (spent / daysElapsed) * daysInMonth : null
+    const willExceed = projected !== null && projected > budget.limitAmount
+
     return (
         <div className="flo-card" style={{ position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
@@ -66,6 +73,14 @@ export default function BudgetCard({ budget, spent, onDelete }: BudgetCardProps)
                     {Math.round(percentage)}%
                 </span>
             </div>
+
+            {projected !== null && !isOver && (
+                <p style={{ fontSize: '0.75rem', marginTop: '10px', color: willExceed ? 'var(--expense)' : 'var(--muted)', fontWeight: willExceed ? 600 : 400 }}>
+                    {willExceed
+                        ? `At this rate, you'll spend ₹${Math.round(projected).toLocaleString()} by month end`
+                        : `On track to spend ₹${Math.round(projected).toLocaleString()} by month end`}
+                </p>
+            )}
         </div>
     )
 }
