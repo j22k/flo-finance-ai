@@ -96,6 +96,22 @@ export interface RecurringTransaction {
   isActive: boolean
 }
 
+export interface OverspendingCategory {
+  category: string
+  current: number
+  historicalAvg: number
+  overAmount: number
+  overPercent: number | null
+}
+
+export interface SpendingAverages {
+  avgDaily: number
+  avgMonthly: number
+  avgYearly: number
+  monthsTracked: number
+  overspending: OverspendingCategory[]
+}
+
 export interface DailySpend {
   day: number
   total: number

@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BarChart3, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, Wallet, Mail, Loader2, ArrowUp, ArrowDown, Sparkles } from 'lucide-react'
+import { BarChart3, PieChart as PieChartIcon, Activity, TrendingUp, TrendingDown, Wallet, Mail, Loader2, ArrowUp, ArrowDown, Sparkles, CalendarRange, Flame } from 'lucide-react'
 import StatCard from '@/components/StatCard'
 import BarChartComponent from '@/components/charts/BarChart'
 import PieChartComponent from '@/components/charts/PieChart'
 import SpendingCalendar from '@/components/SpendingCalendar'
 import api from '@/lib/api'
-import { MonthlySummary, CategoryStat, LentStats, DailySpend } from '@/types'
+import { MonthlySummary, CategoryStat, LentStats, DailySpend, SpendingAverages } from '@/types'
 import { Wallet as WalletIcon, CheckCircle2, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { subMonths } from 'date-fns'
@@ -261,6 +261,40 @@ function BiggestMovers({ movers }: { movers: Mover[] }) {
     )
 }
 
+function OverspendingCategories({ overspending }: { overspending: SpendingAverages['overspending'] }) {
+    if (!overspending.length) {
+        return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Nothing is running above your usual pace</div>
+    }
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {overspending.map((o) => (
+                <div key={o.category} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '10px', background: 'var(--surface2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ background: 'rgba(255,107,138,0.1)', padding: '6px', borderRadius: '8px' }}>
+                            <Flame size={14} color="var(--expense)" />
+                        </div>
+                        <div>
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{o.category}</span>
+                            <p style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                                usually ₹{Math.round(o.historicalAvg).toLocaleString()}/mo
+                            </p>
+                        </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                        <span className="amount" style={{ fontWeight: 700, color: 'var(--expense)', fontSize: '0.85rem' }}>
+                            ₹{Math.round(o.current).toLocaleString()}
+                        </span>
+                        <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: 'var(--muted)' }}>
+                            {o.overPercent === null ? 'New' : `+${o.overPercent}%`}
+                        </span>
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
 export default function AnalyticsPage() {
     const currentYear = new Date().getFullYear()
     const currentMonth = new Date().getMonth() + 1
@@ -272,6 +306,7 @@ export default function AnalyticsPage() {
     const [prevCategories, setPrevCategories] = useState<CategoryStat[]>([])
     const [dailySpend, setDailySpend] = useState<DailySpend[]>([])
     const [lentStats, setLentStats] = useState<LentStats | null>(null)
+    const [averages, setAverages] = useState<SpendingAverages | null>(null)
     const [loading, setLoading] = useState(true)
     const [sendingEmail, setSendingEmail] = useState(false)
 
@@ -296,18 +331,20 @@ export default function AnalyticsPage() {
         const fetchAnalytics = async () => {
             setLoading(true)
             try {
-                const [sumRes, catRes, prevCatRes, lentRes, calRes] = await Promise.all([
+                const [sumRes, catRes, prevCatRes, lentRes, calRes, avgRes] = await Promise.all([
                     api.get(`/api/analytics/summary?year=${year}`),
                     api.get(`/api/analytics/categories?month=${month}&year=${year}`),
                     api.get(`/api/analytics/categories?month=${prevMonth}&year=${prevYear}`),
                     api.get('/api/analytics/lent'),
                     api.get(`/api/analytics/calendar?month=${month}&year=${year}`),
+                    api.get(`/api/analytics/averages?month=${month}&year=${year}`),
                 ])
                 setSummary(sumRes.data.months)
                 setCategories(catRes.data.categories)
                 setPrevCategories(prevCatRes.data.categories)
                 setLentStats(lentRes.data)
                 setDailySpend(calRes.data.days)
+                setAverages(avgRes.data)
             } catch (err) {
                 console.error('Failed to fetch analytics', err)
             } finally {
@@ -404,6 +441,34 @@ export default function AnalyticsPage() {
                     color="#a78bfa"
                     gradient="rgba(124,106,247,0.08)"
                     sub={`Total for ${year}`}
+                />
+            </div>
+
+            {/* Average Spending Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                <StatCard
+                    title="Avg Daily Spend"
+                    value={`₹${Math.round(averages?.avgDaily || 0).toLocaleString()}`}
+                    icon={CalendarRange}
+                    color="var(--expense)"
+                    gradient="rgba(255,107,138,0.08)"
+                    sub="All-time average"
+                />
+                <StatCard
+                    title="Avg Monthly Spend"
+                    value={`₹${Math.round(averages?.avgMonthly || 0).toLocaleString()}`}
+                    icon={CalendarRange}
+                    color="var(--warning)"
+                    gradient="rgba(255,217,61,0.08)"
+                    sub={`Across ${averages?.monthsTracked || 0} month${averages?.monthsTracked === 1 ? '' : 's'}`}
+                />
+                <StatCard
+                    title="Avg Yearly Spend"
+                    value={`₹${Math.round(averages?.avgYearly || 0).toLocaleString()}`}
+                    icon={CalendarRange}
+                    color="#a78bfa"
+                    gradient="rgba(124,106,247,0.08)"
+                    sub="All-time average"
                 />
             </div>
 
@@ -508,6 +573,21 @@ export default function AnalyticsPage() {
                                 <h2 className="text-[1.2rem] font-bold">Spending Calendar</h2>
                             </div>
                             <SpendingCalendar days={dailySpend} month={month} year={year} />
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col xl:flex-row gap-6 mb-6">
+                        <div className="flo-card flex-1 w-full min-w-[300px]">
+                            <div className="flex items-center gap-2 mb-6">
+                                <div className="bg-[rgba(255,107,138,0.1)] p-1.5 rounded-lg">
+                                    <Flame size={18} color="var(--expense)" />
+                                </div>
+                                <h2 className="text-[1.2rem] font-bold">Where You're Overspending</h2>
+                            </div>
+                            <p className="text-[var(--muted)] text-[0.8rem] mb-4">
+                                This month&apos;s spend vs. your own historical average for each category
+                            </p>
+                            <OverspendingCategories overspending={averages?.overspending || []} />
                         </div>
                     </div>
 
