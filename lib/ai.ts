@@ -31,7 +31,7 @@ function getClient(): Groq {
 
 export async function* chat(messages: AIMessage[], tools: AITool[]): AsyncGenerator<AIStreamChunk> {
     const stream = await getClient().chat.completions.create({
-        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         messages: messages as any,
         tools: tools.length ? tools : undefined,

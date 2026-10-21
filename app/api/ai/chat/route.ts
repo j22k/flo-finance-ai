@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/middleware'
-import { streamChat, parseActionFromResponse } from '@/lib/gemini'
+import { chat, AIMessage } from '@/lib/ai'
+import { INTENTS, toAITools, parseIntent } from '@/lib/ai/intents'
 import { buildFinancialContext } from '@/lib/financialContext'
 import connectDB from '@/lib/mongodb'
 import User from '@/models/User'
@@ -22,9 +23,7 @@ their actual numbers — never give generic advice.
 
 Be concise, warm, and use Indian currency (₹). Use emojis sparingly.
 When showing lists of transactions, format them as clean markdown tables.
-If the user asks to CREATE, UPDATE, or DELETE data, output a special action tag:
-[ACTION:{"type":"create_transaction","data":{...}}]
-Example data for create_transaction: {"title": "Lunch", "amount": 450, "type": "expense", "category": "Food", "date": "2024-03-07"}
+If the user asks to create, update, or delete data, call the matching tool.
 
 Always ask for confirmation before destructive actions (deletes).
 
@@ -62,45 +61,34 @@ Current page context: ${contextWindow || 'Dashboard'}
 Today's date: ${todayDate}
 `
 
-        const responseStream = await streamChat(systemPrompt, messages)
-        if (!responseStream) throw new Error('No response stream from AI')
+        const aiMessages: AIMessage[] = [
+            { role: 'system', content: systemPrompt },
+            ...messages.map((m: any) => ({ role: m.role === 'model' ? 'assistant' : m.role, content: m.content })),
+        ]
 
         const encoder = new TextEncoder()
-        let fullText = ''
-
         const readable = new ReadableStream({
             async start(controller) {
                 try {
-                    for await (const chunk of responseStream) {
-                        const parts = chunk.candidates?.[0]?.content?.parts
-
-                        if (parts) {
-                            for (const part of parts) {
-                                // Handle regular text
-                                if (part.text) {
-                                    fullText += part.text
-                                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: part.text })}\n\n`))
-                                }
-
-                                // Handle thinking process (if present in new models)
-                                if ((part as any).thought) {
-                                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ thinking: true, thought: (part as any).text })}\n\n`))
-                                }
-
-                                // Handle thought signature (from the user's curl output)
-                                if ((part as any).thoughtSignature) {
-                                    console.log('DEBUG: Thought Signature received:', (part as any).thoughtSignature)
-                                    // You could also stream this if the frontend needs it
-                                }
+                    for await (const chunk of chat(aiMessages, toAITools(INTENTS))) {
+                        if (chunk.type === 'text') {
+                            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: chunk.text })}\n\n`))
+                        } else if (chunk.type === 'tool_call') {
+                            const parsed = parseIntent(chunk.name, chunk.arguments)
+                            if (parsed.ok) {
+                                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, action: { type: chunk.name, data: parsed.args } })}\n\n`))
+                            } else {
+                                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, error: parsed.error })}\n\n`))
                             }
+                            return
                         }
                     }
-
-                    // Final action parsing
-                    const action = parseActionFromResponse(fullText)
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, action })}\n\n`))
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
                 } catch (e) {
                     console.error('Streaming error:', e)
+                    // Always flush a done event, even on failure, so the frontend's
+                    // isLoading state doesn't hang forever on a dropped stream.
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, error: 'Stream interrupted' })}\n\n`))
                 } finally {
                     controller.close()
                 }
@@ -118,7 +106,7 @@ Today's date: ${todayDate}
         console.error('Chat API Error:', error)
         const errorMessage = error.message || 'Internal server error'
         if (errorMessage.includes('API key') || errorMessage.includes('expired') || errorMessage.includes('400')) {
-            return NextResponse.json({ error: 'AI Provider Error: Your Gemini API key appears to be invalid or expired. Please check your .env.local file.' }, { status: 400 })
+            return NextResponse.json({ error: 'AI Provider Error: Your Groq API key appears to be invalid or expired. Please check your .env.local file.' }, { status: 400 })
         }
         return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
