@@ -30,6 +30,23 @@ export interface Budget {
   alert100SentAt?: string | null
 }
 
+export interface Card {
+  _id: string
+  name: string
+  last4: string
+  creditLimit: number
+  apr: number
+  statementDay: number
+  dueDaysAfterStatement: number
+  isActive: boolean
+}
+
+export interface CardSummary {
+  outstanding: number
+  availableLimit: number
+  usagePercent: number
+}
+
 export interface DashboardStats {
   income: number
   expense: number
