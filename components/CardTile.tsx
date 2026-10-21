@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Trash2, Plus, X, CreditCard, Wallet } from 'lucide-react'
+import { Trash2, Plus, X, CreditCard, Wallet, Pencil } from 'lucide-react'
 import { Card, CardSummary } from '@/types'
 
 interface CardTileProps {
@@ -9,9 +9,10 @@ interface CardTileProps {
     summary: CardSummary | null
     onDelete: (id: string) => void
     onRecordPayment: (cardId: string, data: { amount: number }) => Promise<void>
+    onEdit: (card: Card) => void
 }
 
-export default function CardTile({ card, summary, onDelete, onRecordPayment }: CardTileProps) {
+export default function CardTile({ card, summary, onDelete, onRecordPayment, onEdit }: CardTileProps) {
     const [showModal, setShowModal] = useState(false)
     const [amount, setAmount] = useState('')
     const [submitting, setSubmitting] = useState(false)
@@ -52,13 +53,22 @@ export default function CardTile({ card, summary, onDelete, onRecordPayment }: C
                         <p style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>•••• {card.last4}</p>
                     </div>
                 </div>
-                <button
-                    onClick={() => onDelete(card._id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', borderRadius: '6px' }}
-                    title="Remove card"
-                >
-                    <Trash2 size={16} />
-                </button>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                        onClick={() => onEdit(card)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', borderRadius: '6px' }}
+                        title="Edit card"
+                    >
+                        <Pencil size={16} />
+                    </button>
+                    <button
+                        onClick={() => onDelete(card._id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', borderRadius: '6px' }}
+                        title="Remove card"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '10px' }}>

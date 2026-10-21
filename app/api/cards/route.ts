@@ -16,7 +16,7 @@ const createSchema = z.object({
 export const GET = withAuth(async (req: NextRequest, { userId }) => {
     try {
         await connectDB()
-        const cards = await Card.find({ userId }).sort({ createdAt: -1 })
+        const cards = await Card.find({ userId, isActive: true }).sort({ createdAt: -1 })
         return NextResponse.json({ cards })
     } catch (error) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

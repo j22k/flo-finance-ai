@@ -1,4 +1,8 @@
 import { describe, it, expect } from 'vitest'
+import { Types } from 'mongoose'
+import connectDB from '@/lib/mongodb'
+import Transaction from '@/models/Transaction'
+import Card from '@/models/Card'
 import { parseIntent, INTENTS, toAITools } from './intents'
 
 describe('parseIntent', () => {
@@ -45,6 +49,51 @@ describe('parseIntent', () => {
   it('validates record_card_payment by cardName, resolved at handler time not schema time', () => {
     const result = parseIntent('record_card_payment', JSON.stringify({ cardName: 'HDFC Millennia', amount: 2000 }))
     expect(result.ok).toBe(true)
+  })
+})
+
+describe('update_transaction handler — card_payment immutability', () => {
+  it('rejects re-typing a card_payment row via the AI intent, same guard as the PUT route', async () => {
+    await connectDB()
+    const userId = new Types.ObjectId()
+    const cardId = new Types.ObjectId()
+    const payment = await Transaction.create({
+      userId, cardId, title: 'Payment to Test Card', amount: 9000,
+      type: 'card_payment', category: 'Card Payment', date: new Date(),
+    })
+
+    const updateIntent = INTENTS.find((i) => i.name === 'update_transaction')!
+    await expect(
+      updateIntent.handler({ _id: payment._id.toString(), type: 'expense' }, userId.toString())
+    ).rejects.toThrow(/card payment/i)
+
+    const reloaded = await Transaction.findById(payment._id)
+    expect(reloaded!.type).toBe('card_payment')
+  })
+})
+
+describe('record_card_payment handler — card resolution', () => {
+  it('fails clearly when the named card does not belong to this user', async () => {
+    await connectDB()
+    const ownerId = new Types.ObjectId()
+    const otherUserId = new Types.ObjectId()
+    await Card.create({ userId: ownerId, name: 'Someone Elses Card', last4: '1111', creditLimit: 1000, apr: 10, statementDay: 1, dueDaysAfterStatement: 15 })
+
+    const paymentIntent = INTENTS.find((i) => i.name === 'record_card_payment')!
+    await expect(
+      paymentIntent.handler({ cardName: 'Someone Elses Card', amount: 100 }, otherUserId.toString())
+    ).rejects.toThrow(/not found/i)
+  })
+
+  it('fails clearly when the named card has been soft-deleted (isActive:false)', async () => {
+    await connectDB()
+    const userId = new Types.ObjectId()
+    await Card.create({ userId, name: 'Retired Card', last4: '2222', creditLimit: 1000, apr: 10, statementDay: 1, dueDaysAfterStatement: 15, isActive: false })
+
+    const paymentIntent = INTENTS.find((i) => i.name === 'record_card_payment')!
+    await expect(
+      paymentIntent.handler({ cardName: 'Retired Card', amount: 100 }, userId.toString())
+    ).rejects.toThrow(/not found/i)
   })
 })
 

@@ -85,6 +85,12 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
 
         const { title, amount, type, category, date, note, isLent, repaid, paymentMethod, cardId } = validation.data
 
+        // A cardId only means anything when paymentMethod is "card" — drop it
+        // otherwise so an inconsistent client payload (e.g. paymentMethod
+        // reset to cash without clearing a previously-picked card) can't tag
+        // a transaction to a card it isn't actually on.
+        const effectivePaymentMethod = paymentMethod ?? 'cash'
+
         const transaction = await Transaction.create({
             userId,
             title,
@@ -96,7 +102,7 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
             isLent,
             repaid,
             paymentMethod,
-            cardId,
+            cardId: effectivePaymentMethod === 'card' ? cardId : undefined,
         })
 
         return NextResponse.json({ transaction }, { status: 201 })

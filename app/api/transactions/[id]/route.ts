@@ -70,10 +70,34 @@ export const PUT = withAuth(
                 )
             }
 
-            const updates = validation.data
+            const updates: any = validation.data
+
+            // card_payment rows are excluded from analytics/budgets/reports by
+            // their type alone (no separate flag) — letting the generic
+            // transaction form flip type/category/cardId/paymentMethod on one
+            // would silently double-count it as a real expense. Amount/date/
+            // note edits are still allowed; they don't affect that exclusion.
+            if (
+                transaction.type === 'card_payment' &&
+                (updates.type !== undefined || updates.category !== undefined || updates.cardId !== undefined || updates.paymentMethod !== undefined)
+            ) {
+                return NextResponse.json(
+                    { error: 'Card payments cannot be re-categorized or re-tagged here — delete and re-record it from the Cards page instead.' },
+                    { status: 400 }
+                )
+            }
+
             if (updates.date) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                ; (updates as any).date = new Date(updates.date)
+                updates.date = new Date(updates.date)
+            }
+
+            // Changing paymentMethod away from "card" must drop the stale
+            // cardId — the client may omit cardId entirely in that request
+            // (JSON drops undefined keys), which would otherwise leave the
+            // old reference in place and keep inflating that card's balance.
+            const effectivePaymentMethod = updates.paymentMethod ?? transaction.paymentMethod
+            if (effectivePaymentMethod !== 'card') {
+                updates.cardId = null
             }
 
             const updated = await Transaction.findByIdAndUpdate(params.id, updates, { new: true })

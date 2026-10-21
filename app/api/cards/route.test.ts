@@ -37,6 +37,24 @@ describe('POST /api/cards', () => {
     })
 })
 
+describe('GET /api/cards', () => {
+    it('excludes soft-deleted (isActive:false) cards from the list', async () => {
+        await connectDB()
+        const userId = new Types.ObjectId()
+        await Card.create({ userId, name: 'Active Card', last4: '1111', creditLimit: 1000, apr: 10, statementDay: 1, dueDaysAfterStatement: 15, isActive: true })
+        await Card.create({ userId, name: 'Deleted Card', last4: '2222', creditLimit: 1000, apr: 10, statementDay: 1, dueDaysAfterStatement: 15, isActive: false })
+
+        const { GET } = await import('./route')
+        const token = signAccessToken(userId.toString(), 'user')
+        const req = makeRequest(undefined, token)
+        const res = await GET(req, {})
+        const body = await res.json()
+
+        expect(body.cards).toHaveLength(1)
+        expect(body.cards[0].name).toBe('Active Card')
+    })
+})
+
 describe('GET /api/cards/[id]', () => {
     it('returns 404 for a card belonging to a different user', async () => {
         await connectDB()

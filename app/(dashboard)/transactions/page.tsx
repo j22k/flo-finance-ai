@@ -169,13 +169,19 @@ export default function TransactionsPage() {
                                         </td>
                                         <td style={{ textAlign: 'right', paddingRight: '24px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                                <button
-                                                    onClick={() => { setEditingTx(tx); setIsModalOpen(true); }}
-                                                    style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 size={14} />
-                                                </button>
+                                                {/* Card payments are managed from the Cards page (recording a
+                                                    payment, or deleting it below) — the generic edit form would
+                                                    let someone change its category/type and silently turn a
+                                                    payment into a regular expense. */}
+                                                {tx.type !== 'card_payment' && (
+                                                    <button
+                                                        onClick={() => { setEditingTx(tx); setIsModalOpen(true); }}
+                                                        style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                                                        title="Edit"
+                                                    >
+                                                        <Edit2 size={14} />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => setDeletingId(tx._id)}
                                                     style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--expense)', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}

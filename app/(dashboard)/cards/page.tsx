@@ -6,11 +6,12 @@ import { useCards } from '@/hooks/useCards'
 import CardForm from '@/components/CardForm'
 import CardTile from '@/components/CardTile'
 import api from '@/lib/api'
-import { CardSummary } from '@/types'
+import { Card, CardSummary } from '@/types'
 
 export default function CardsPage() {
-    const { cards, loading, createCard, deleteCard, recordPayment } = useCards()
+    const { cards, loading, createCard, updateCard, deleteCard, recordPayment } = useCards()
     const [showForm, setShowForm] = useState(false)
+    const [editingCard, setEditingCard] = useState<Card | null>(null)
     const [summaries, setSummaries] = useState<Record<string, CardSummary>>({})
 
     useEffect(() => {
@@ -68,6 +69,7 @@ export default function CardsPage() {
                             summary={summaries[card._id] || null}
                             onDelete={deleteCard}
                             onRecordPayment={handleRecordPayment}
+                            onEdit={setEditingCard}
                         />
                     ))}
                 </div>
@@ -75,6 +77,14 @@ export default function CardsPage() {
 
             {showForm && (
                 <CardForm onSubmit={createCard} onClose={() => setShowForm(false)} />
+            )}
+
+            {editingCard && (
+                <CardForm
+                    initialData={editingCard}
+                    onSubmit={(data) => updateCard(editingCard._id, data)}
+                    onClose={() => setEditingCard(null)}
+                />
             )}
         </div>
     )

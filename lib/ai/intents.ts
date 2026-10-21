@@ -109,8 +109,19 @@ export const INTENTS: Intent[] = [
         handler: async (args: z.infer<typeof updateTransactionSchema>, userId: string) => {
             await connectDB()
             const { _id, ...data } = args
+
+            const existing = await Transaction.findOne({ _id, userId })
+            if (!existing) throw new Error('Transaction not found or unauthorized')
+
+            // Same guard as the PUT /api/transactions/[id] route: a
+            // card_payment row's exclusion from analytics/budgets/reports
+            // comes from its type alone, so re-typing or re-categorizing it
+            // here would silently double-count it as a real expense.
+            if (existing.type === 'card_payment' && (data.type !== undefined || data.category !== undefined)) {
+                throw new Error('Card payments cannot be re-categorized here — delete and re-record it from the Cards page instead.')
+            }
+
             const tx = await Transaction.findOneAndUpdate({ _id, userId }, { $set: data }, { new: true })
-            if (!tx) throw new Error('Transaction not found or unauthorized')
             return { success: true, result: tx }
         },
     },
@@ -197,8 +208,14 @@ export const INTENTS: Intent[] = [
         handler: async (args: z.infer<typeof recordCardPaymentSchema>, userId: string) => {
             await connectDB()
             const { cardName, amount, note } = args
-            const card = await Card.findOne({ userId, name: new RegExp(`^${escapeRegex(cardName)}$`, 'i') })
-            if (!card) throw new Error(`Card not found: ${cardName}`)
+            // isActive:true excludes soft-deleted cards (the user believes
+            // them gone, per the Cards page). Matching with find() instead
+            // of findOne() lets us detect and reject an ambiguous name
+            // rather than silently picking whichever duplicate sorts first.
+            const matches = await Card.find({ userId, isActive: true, name: new RegExp(`^${escapeRegex(cardName)}$`, 'i') })
+            if (matches.length === 0) throw new Error(`Card not found: ${cardName}`)
+            if (matches.length > 1) throw new Error(`Multiple active cards are named "${cardName}" — ask the user to specify which one (e.g. by last 4 digits).`)
+            const card = matches[0]
 
             const transaction = await Transaction.create({
                 userId,

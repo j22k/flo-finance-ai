@@ -40,4 +40,15 @@ describe('POST /api/transactions — payment method', () => {
         expect(res.status).toBe(201)
         expect(body.transaction.paymentMethod).toBe('cash')
     })
+
+    it('drops a stray cardId when paymentMethod is not "card" (inconsistent client state)', async () => {
+        await connectDB()
+        const { POST } = await import('./route')
+        const token = signAccessToken(new Types.ObjectId().toString(), 'user')
+        const req = postRequest({ title: 'Lunch', amount: 300, type: 'expense', category: 'Food', date: '2026-10-21', paymentMethod: 'cash', cardId: new Types.ObjectId().toString() }, token)
+        const res = await POST(req, {})
+        const body = await res.json()
+        expect(res.status).toBe(201)
+        expect(body.transaction.cardId).toBeFalsy()
+    })
 })
