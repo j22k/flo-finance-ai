@@ -33,6 +33,8 @@ export default function ActionConfirmCard({ action, onConfirm }: ActionConfirmCa
             case 'update_transaction': return 'Update Transaction'
             case 'delete_transaction': return 'Delete Transaction'
             case 'set_budget': return 'Update Budget'
+            case 'add_card': return 'Add Card'
+            case 'record_card_payment': return 'Record Card Payment'
             default: return 'Quick Action'
         }
     }
@@ -61,6 +63,10 @@ export default function ActionConfirmCard({ action, onConfirm }: ActionConfirmCa
                 {action.data.category && renderDataPill('Category', action.data.category)}
                 {action.data.type && renderDataPill('Type', action.data.type)}
                 {action.data.limitAmount && renderDataPill('New Limit', `₹${action.data.limitAmount}`)}
+                {action.data.name && renderDataPill('Name', action.data.name)}
+                {action.data.last4 && renderDataPill('Card', `•••• ${action.data.last4}`)}
+                {action.data.creditLimit && renderDataPill('Credit Limit', `₹${action.data.creditLimit}`)}
+                {action.data.cardName && renderDataPill('Card', action.data.cardName)}
             </div>
 
             <div className="flex gap-2">

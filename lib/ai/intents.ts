@@ -2,8 +2,13 @@ import { z } from 'zod'
 import connectDB from '@/lib/mongodb'
 import Transaction from '@/models/Transaction'
 import Budget from '@/models/Budget'
+import Card from '@/models/Card'
 import { ActionResult } from '@/types/chat'
 import { AITool } from '@/lib/ai'
+
+function escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
 export interface Intent<TArgs = any> {
     name: string
@@ -42,6 +47,21 @@ const setBudgetSchema = z.object({
     limitAmount: z.number().positive(),
     month: z.number(),
     year: z.number(),
+})
+
+const addCardSchema = z.object({
+    name: z.string().min(1),
+    last4: z.string().regex(/^\d{4}$/),
+    creditLimit: z.number().positive(),
+    apr: z.number().min(0),
+    statementDay: z.number().int().min(1).max(31),
+    dueDaysAfterStatement: z.number().int().positive(),
+})
+
+const recordCardPaymentSchema = z.object({
+    cardName: z.string().min(1),
+    amount: z.number().positive(),
+    note: z.string().optional(),
 })
 
 export const INTENTS: Intent[] = [
@@ -135,6 +155,62 @@ export const INTENTS: Intent[] = [
                 { new: true, upsert: true }
             )
             return { success: true, result: budget }
+        },
+    },
+    {
+        name: 'add_card',
+        description: 'Add a new credit card account, storing only the last 4 digits.',
+        mutates: true,
+        schema: addCardSchema,
+        parameters: {
+            type: 'object',
+            properties: {
+                name: { type: 'string' },
+                last4: { type: 'string', description: 'Exactly 4 digits, never the full card number' },
+                creditLimit: { type: 'number' },
+                apr: { type: 'number', description: 'Annual percentage rate, e.g. 36 for 36%' },
+                statementDay: { type: 'number', description: 'Day of month, 1-31' },
+                dueDaysAfterStatement: { type: 'number' },
+            },
+            required: ['name', 'last4', 'creditLimit', 'apr', 'statementDay', 'dueDaysAfterStatement'],
+        },
+        handler: async (args: z.infer<typeof addCardSchema>, userId: string) => {
+            await connectDB()
+            const card = await Card.create({ ...args, userId })
+            return { success: true, result: card }
+        },
+    },
+    {
+        name: 'record_card_payment',
+        description: "Record a payment towards a credit card's outstanding balance, identified by the card's name.",
+        mutates: true,
+        schema: recordCardPaymentSchema,
+        parameters: {
+            type: 'object',
+            properties: {
+                cardName: { type: 'string' },
+                amount: { type: 'number' },
+                note: { type: 'string' },
+            },
+            required: ['cardName', 'amount'],
+        },
+        handler: async (args: z.infer<typeof recordCardPaymentSchema>, userId: string) => {
+            await connectDB()
+            const { cardName, amount, note } = args
+            const card = await Card.findOne({ userId, name: new RegExp(`^${escapeRegex(cardName)}$`, 'i') })
+            if (!card) throw new Error(`Card not found: ${cardName}`)
+
+            const transaction = await Transaction.create({
+                userId,
+                cardId: card._id,
+                type: 'card_payment',
+                category: 'Card Payment',
+                title: `Payment to ${card.name}`,
+                amount,
+                date: new Date(),
+                note,
+            })
+            return { success: true, result: transaction }
         },
     },
 ]

@@ -27,12 +27,31 @@ describe('parseIntent', () => {
     const result = parseIntent('add_transaction', JSON.stringify({ title: 'Lunch' })) // missing amount/type/category/date
     expect(result.ok).toBe(false)
   })
+
+  it('validates add_card with a 4-digit last4', () => {
+    const result = parseIntent('add_card', JSON.stringify({
+      name: 'HDFC Millennia', last4: '4242', creditLimit: 50000, apr: 36, statementDay: 5, dueDaysAfterStatement: 20,
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects add_card with a non-4-digit last4', () => {
+    const result = parseIntent('add_card', JSON.stringify({
+      name: 'Bad', last4: '424', creditLimit: 1000, apr: 10, statementDay: 1, dueDaysAfterStatement: 15,
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('validates record_card_payment by cardName, resolved at handler time not schema time', () => {
+    const result = parseIntent('record_card_payment', JSON.stringify({ cardName: 'HDFC Millennia', amount: 2000 }))
+    expect(result.ok).toBe(true)
+  })
 })
 
 describe('toAITools', () => {
   it('builds OpenAI-shaped tool definitions without leaking internal fields', () => {
     const tools = toAITools(INTENTS)
-    expect(tools).toHaveLength(4)
+    expect(tools).toHaveLength(6)
     for (const t of tools) {
       expect(t.type).toBe('function')
       expect(t.function).not.toHaveProperty('mutates')
