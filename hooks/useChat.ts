@@ -84,6 +84,10 @@ export function useChat(contextWindow?: string) {
                     if (data.done) {
                         finalAction = data.action
                     }
+
+                    if (data.error) {
+                        toast.error(data.error)
+                    }
                 }
             }
 
