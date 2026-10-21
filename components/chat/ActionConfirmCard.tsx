@@ -29,11 +29,10 @@ export default function ActionConfirmCard({ action, onConfirm }: ActionConfirmCa
 
     const getActionLabel = () => {
         switch (action.type) {
-            case 'create_transaction': return 'Add Transaction'
+            case 'add_transaction': return 'Add Transaction'
             case 'update_transaction': return 'Update Transaction'
             case 'delete_transaction': return 'Delete Transaction'
-            case 'create_budget':
-            case 'update_budget': return 'Update Budget'
+            case 'set_budget': return 'Update Budget'
             default: return 'Quick Action'
         }
     }

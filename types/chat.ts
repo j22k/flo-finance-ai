@@ -10,7 +10,7 @@ export interface ChatMessage {
 }
 
 export interface ChatAction {
-    type: 'create_transaction' | 'update_transaction' | 'delete_transaction' | 'create_budget' | 'update_budget'
+    type: 'add_transaction' | 'update_transaction' | 'delete_transaction' | 'set_budget'
     data: any
 }
 
