@@ -56,4 +56,20 @@ describe('chat()', () => {
       { type: 'done' },
     ])
   })
+
+  it('requests parallel_tool_calls:false so the model proposes one action at a time', async () => {
+    const Groq = (await import('groq-sdk')).default as any
+    const createMock = vi.fn().mockResolvedValue((async function* () {})())
+    Groq.mockImplementation(function () {
+      return { chat: { completions: { create: createMock } } }
+    })
+
+    const { chat } = await import('./ai')
+    const tool = { type: 'function' as const, function: { name: 'add_transaction', description: '', parameters: {} } }
+    for await (const _ of chat([{ role: 'user', content: 'hi' }], [tool])) { /* drain */ }
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ parallel_tool_calls: false })
+    )
+  })
 })

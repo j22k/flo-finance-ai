@@ -36,6 +36,11 @@ export async function* chat(messages: AIMessage[], tools: AITool[]): AsyncGenera
         messages: messages as any,
         tools: tools.length ? tools : undefined,
         tool_choice: tools.length ? 'auto' : undefined,
+        // One action per turn — chat()'s buffering/flush design can represent
+        // several tool calls, but the chat route only ever acts on the first
+        // (mutating actions need a confirm card each), so asking the model
+        // for more than one per turn would mean the rest are silently lost.
+        parallel_tool_calls: tools.length ? false : undefined,
         stream: true,
     })
 

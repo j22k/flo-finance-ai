@@ -66,11 +66,22 @@ Today's date: ${todayDate}
             ...messages.map((m: any) => ({ role: m.role === 'model' ? 'assistant' : m.role, content: m.content })),
         ]
 
+        // chat() is an async generator: nothing in its body runs — including
+        // the GROQ_API_KEY check and the actual request to Groq — until it's
+        // first iterated. Iterating it eagerly here, before the Response (and
+        // its 200 status) is constructed, means a missing/invalid key or a
+        // bad model name throws into THIS try/catch instead of being caught
+        // inside the already-200 SSE stream below.
+        const streamIter = chat(aiMessages, toAITools(INTENTS))
+        const firstResult = await streamIter.next()
+
         const encoder = new TextEncoder()
         const readable = new ReadableStream({
             async start(controller) {
                 try {
-                    for await (const chunk of chat(aiMessages, toAITools(INTENTS))) {
+                    let result = firstResult
+                    while (!result.done) {
+                        const chunk = result.value
                         if (chunk.type === 'text') {
                             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: chunk.text })}\n\n`))
                         } else if (chunk.type === 'tool_call') {
@@ -80,8 +91,18 @@ Today's date: ${todayDate}
                             } else {
                                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, error: parsed.error })}\n\n`))
                             }
+                            // The chat UI acts on one action at a time (each needs its
+                            // own confirm card). lib/ai.ts asks Groq for
+                            // parallel_tool_calls:false so the model shouldn't propose
+                            // more than one, but if it ever does anyway, log it loudly
+                            // instead of silently dropping the rest.
+                            const next = await streamIter.next()
+                            if (!next.done) {
+                                console.error('Chat API: model proposed additional tool call(s) beyond the first, which were dropped:', next.value)
+                            }
                             return
                         }
+                        result = await streamIter.next()
                     }
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
                 } catch (e) {
@@ -105,7 +126,12 @@ Today's date: ${todayDate}
     } catch (error: any) {
         console.error('Chat API Error:', error)
         const errorMessage = error.message || 'Internal server error'
-        if (errorMessage.includes('API key') || errorMessage.includes('expired') || errorMessage.includes('400')) {
+        // Covers both our own "GROQ_API_KEY ... not set" check (a plain Error,
+        // no .status) and a real Groq 401 (groq-sdk's APIError.status) —
+        // the original substring checks alone never matched either, since
+        // neither says "API key" (space-separated) literally.
+        const isKeyError = error.status === 401 || /api[\s_-]?key/i.test(errorMessage)
+        if (isKeyError || errorMessage.includes('expired') || errorMessage.includes('400')) {
             return NextResponse.json({ error: 'AI Provider Error: Your Groq API key appears to be invalid or expired. Please check your .env.local file.' }, { status: 400 })
         }
         return NextResponse.json({ error: errorMessage }, { status: 500 })
