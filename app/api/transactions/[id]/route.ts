@@ -4,19 +4,26 @@ import connectDB from '@/lib/mongodb'
 import Transaction from '@/models/Transaction'
 import { withAuth } from '@/lib/middleware'
 
-const updateSchema = z.object({
-    title: z.string().min(1).trim().optional(),
-    amount: z.number().positive().optional(),
-    type: z.enum(['income', 'expense']).optional(),
-    category: z.string().min(1).optional(),
-    date: z
-        .string()
-        .refine((v) => !isNaN(Date.parse(v)))
-        .optional(),
-    note: z.string().optional(),
-    isLent: z.boolean().optional(),
-    repaid: z.boolean().optional(),
-})
+const updateSchema = z
+    .object({
+        title: z.string().min(1).trim().optional(),
+        amount: z.number().positive().optional(),
+        type: z.enum(['income', 'expense']).optional(),
+        category: z.string().min(1).optional(),
+        date: z
+            .string()
+            .refine((v) => !isNaN(Date.parse(v)))
+            .optional(),
+        note: z.string().optional(),
+        isLent: z.boolean().optional(),
+        repaid: z.boolean().optional(),
+        paymentMethod: z.enum(['cash', 'upi', 'card', 'bank']).optional(),
+        cardId: z.string().optional(),
+    })
+    .refine((data) => data.paymentMethod !== 'card' || !!data.cardId, {
+        message: 'cardId is required when paymentMethod is "card"',
+        path: ['cardId'],
+    })
 
 export const GET = withAuth(
     async (req: NextRequest, { params, userId }: { params: { id: string }; userId: string }) => {

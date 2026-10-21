@@ -4,16 +4,23 @@ import connectDB from '@/lib/mongodb'
 import Transaction from '@/models/Transaction'
 import { withAuth } from '@/lib/middleware'
 
-const createSchema = z.object({
-    title: z.string().min(1, 'Title required').trim(),
-    amount: z.number().positive('Amount must be positive'),
-    type: z.enum(['income', 'expense']),
-    category: z.string().min(1, 'Category required'),
-    date: z.string().refine((v) => !isNaN(Date.parse(v)), 'Invalid date'),
-    note: z.string().optional(),
-    isLent: z.boolean().optional(),
-    repaid: z.boolean().optional(),
-})
+const createSchema = z
+    .object({
+        title: z.string().min(1, 'Title required').trim(),
+        amount: z.number().positive('Amount must be positive'),
+        type: z.enum(['income', 'expense']),
+        category: z.string().min(1, 'Category required'),
+        date: z.string().refine((v) => !isNaN(Date.parse(v)), 'Invalid date'),
+        note: z.string().optional(),
+        isLent: z.boolean().optional(),
+        repaid: z.boolean().optional(),
+        paymentMethod: z.enum(['cash', 'upi', 'card', 'bank']).optional(),
+        cardId: z.string().optional(),
+    })
+    .refine((data) => data.paymentMethod !== 'card' || !!data.cardId, {
+        message: 'cardId is required when paymentMethod is "card"',
+        path: ['cardId'],
+    })
 
 export const GET = withAuth(async (req: NextRequest, { userId }) => {
     try {
@@ -76,7 +83,7 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
             )
         }
 
-        const { title, amount, type, category, date, note, isLent, repaid } = validation.data
+        const { title, amount, type, category, date, note, isLent, repaid, paymentMethod, cardId } = validation.data
 
         const transaction = await Transaction.create({
             userId,
@@ -88,6 +95,8 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
             note,
             isLent,
             repaid,
+            paymentMethod,
+            cardId,
         })
 
         return NextResponse.json({ transaction }, { status: 201 })

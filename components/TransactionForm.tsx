@@ -5,6 +5,7 @@ import { X, TrendingUp, TrendingDown, Plus } from 'lucide-react'
 import { Transaction, CATEGORIES } from '@/types'
 import { format } from 'date-fns'
 import { useCategories } from '@/hooks/useCategories'
+import { useCards } from '@/hooks/useCards'
 
 interface TransactionFormProps {
     onSubmit: (data: Omit<Transaction, '_id' | 'createdAt'>) => Promise<void>
@@ -14,6 +15,8 @@ interface TransactionFormProps {
 
 export default function TransactionForm({ onSubmit, onClose, initialData }: TransactionFormProps) {
     const { categories, fetchCategories } = useCategories()
+    const { cards } = useCards()
+    const activeCards = cards.filter((c) => c.isActive)
     // This form never edits a card_payment row (those are created and managed
     // through the dedicated card payment flow, not here) — narrow defensively
     // in case it's ever somehow passed one, rather than widening this form's
@@ -33,6 +36,8 @@ export default function TransactionForm({ onSubmit, onClose, initialData }: Tran
         note: initialData?.note || '',
         isLent: initialData?.isLent || false,
         repaid: initialData?.repaid || false,
+        paymentMethod: initialData?.paymentMethod || 'cash',
+        cardId: initialData?.cardId || '',
     })
 
     const optionsStr = options.join(',')
@@ -49,6 +54,7 @@ export default function TransactionForm({ onSubmit, onClose, initialData }: Tran
         if (!formData.title.trim()) errs.title = 'Title is required'
         if (!formData.amount || parseFloat(formData.amount) <= 0) errs.amount = 'Amount must be positive'
         if (!formData.date) errs.date = 'Date is required'
+        if (formData.paymentMethod === 'card' && !formData.cardId) errs.cardId = 'Select a card'
         return errs
     }
 
@@ -69,6 +75,8 @@ export default function TransactionForm({ onSubmit, onClose, initialData }: Tran
                 note: formData.note || undefined,
                 isLent: formData.isLent,
                 repaid: formData.repaid,
+                paymentMethod: formData.paymentMethod,
+                cardId: formData.paymentMethod === 'card' ? formData.cardId : undefined,
             } as Omit<Transaction, '_id' | 'createdAt'>)
             onClose()
         } catch {
@@ -200,6 +208,39 @@ export default function TransactionForm({ onSubmit, onClose, initialData }: Tran
                                 onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                             />
                         </div>
+
+                        {/* Payment Method */}
+                        <div>
+                            <label className="flo-label">Payment Method</label>
+                            <select
+                                className="flo-select"
+                                value={formData.paymentMethod}
+                                onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as typeof formData.paymentMethod, cardId: e.target.value === 'card' ? formData.cardId : '' })}
+                            >
+                                <option value="cash">Cash</option>
+                                <option value="upi">UPI</option>
+                                <option value="card">Card</option>
+                                <option value="bank">Bank</option>
+                            </select>
+                        </div>
+
+                        {/* Card (only when paying by card) */}
+                        {formData.paymentMethod === 'card' && (
+                            <div>
+                                <label className="flo-label">Card</label>
+                                <select
+                                    className="flo-select"
+                                    value={formData.cardId}
+                                    onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
+                                >
+                                    <option value="">Select a card</option>
+                                    {activeCards.map((c) => (
+                                        <option key={c._id} value={c._id}>{c.name} •••• {c.last4}</option>
+                                    ))}
+                                </select>
+                                {errors.cardId && <p style={{ color: 'var(--expense)', fontSize: '0.75rem', marginTop: '4px' }}>{errors.cardId}</p>}
+                            </div>
+                        )}
 
                         {/* Lent Status */}
                         {type === 'expense' && (
