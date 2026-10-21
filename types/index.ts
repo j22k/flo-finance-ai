@@ -9,12 +9,14 @@ export interface Transaction {
   _id: string
   title: string
   amount: number
-  type: 'income' | 'expense'
+  type: 'income' | 'expense' | 'card_payment'
   category: string
   date: string
   note?: string
   isLent?: boolean
   repaid?: boolean
+  paymentMethod?: 'cash' | 'upi' | 'card' | 'bank'
+  cardId?: string
   createdAt: string
 }
 

@@ -14,7 +14,11 @@ interface TransactionFormProps {
 
 export default function TransactionForm({ onSubmit, onClose, initialData }: TransactionFormProps) {
     const { categories, fetchCategories } = useCategories()
-    const [type, setType] = useState<'income' | 'expense'>(initialData?.type || 'expense')
+    // This form never edits a card_payment row (those are created and managed
+    // through the dedicated card payment flow, not here) — narrow defensively
+    // in case it's ever somehow passed one, rather than widening this form's
+    // own type toggle to a type it was never meant to represent.
+    const [type, setType] = useState<'income' | 'expense'>(initialData?.type === 'income' ? 'income' : 'expense')
     
     // Derived categories for the current type
     const availableCategories = categories.filter(c => c.type === type).map(c => c.name)

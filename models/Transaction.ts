@@ -4,12 +4,14 @@ export interface ITransaction extends Document {
     userId: Types.ObjectId
     title: string
     amount: number
-    type: 'income' | 'expense'
+    type: 'income' | 'expense' | 'card_payment'
     category: string
     date: Date
     note?: string
     isLent?: boolean
     repaid?: boolean
+    paymentMethod?: 'cash' | 'upi' | 'card' | 'bank'
+    cardId?: Types.ObjectId
     createdAt: Date
     updatedAt: Date
 }
@@ -33,7 +35,7 @@ const transactionSchema = new Schema<ITransaction>(
         },
         type: {
             type: String,
-            enum: ['income', 'expense'],
+            enum: ['income', 'expense', 'card_payment'],
             required: [true, 'Type is required'],
         },
         category: {
@@ -55,6 +57,15 @@ const transactionSchema = new Schema<ITransaction>(
         repaid: {
             type: Boolean,
             default: false,
+        },
+        paymentMethod: {
+            type: String,
+            enum: ['cash', 'upi', 'card', 'bank'],
+            default: 'cash',
+        },
+        cardId: {
+            type: Schema.Types.ObjectId,
+            ref: 'Card',
         },
     },
     {
