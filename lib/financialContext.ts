@@ -87,7 +87,7 @@ export async function buildFinancialContext(userId: string, userName: string = '
     for (const tx of thisMonthTransactions) {
         if (tx.type === 'income') {
             thisMonth.income += tx.amount
-        } else {
+        } else if (tx.type === 'expense') {
             thisMonth.expenses += tx.amount
             if (!categoryTotals[tx.category]) {
                 categoryTotals[tx.category] = 0
@@ -149,7 +149,7 @@ export async function buildFinancialContext(userId: string, userName: string = '
         let inc = 0, exp = 0
         for (const tx of txs) {
             if (tx.type === 'income') inc += tx.amount
-            else exp += tx.amount
+            else if (tx.type === 'expense') exp += tx.amount
         }
         monthlyTrend.push({
             month: targetDate.toLocaleString('default', { month: 'short' }),
