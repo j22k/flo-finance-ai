@@ -9,7 +9,7 @@ export interface AIMessage {
 
 export interface AITool {
     type: 'function'
-    function: { name: string; description: string; parameters: object }
+    function: { name: string; description: string; parameters: Record<string, unknown> }
 }
 
 export type AIStreamChunk =
@@ -62,7 +62,7 @@ export async function* chat(messages: AIMessage[], tools: AITool[]): AsyncGenera
         }
     }
 
-    for (const buf of toolCalls.values()) {
+    for (const buf of Array.from(toolCalls.values())) {
         yield { type: 'tool_call', id: buf.id, name: buf.name, arguments: buf.args }
     }
 
