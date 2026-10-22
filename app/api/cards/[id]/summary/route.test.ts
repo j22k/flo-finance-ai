@@ -42,6 +42,25 @@ describe('GET /api/cards/[id]/summary', () => {
         expect(body.availableLimit).toBe(6000) // 10000 - 4000
         expect(body.usagePercent).toBe(40)
     })
+
+    it('includes cycle dates and a daily interest estimate alongside the existing balance fields', async () => {
+        await connectDB()
+        const userId = new Types.ObjectId()
+        const card = await Card.create({ userId, name: 'Interest Test', last4: '4242', creditLimit: 10000, apr: 36.5, statementDay: new Date().getDate(), dueDaysAfterStatement: 20 })
+        await Transaction.create({ userId, title: 'Spend', amount: 1000, type: 'expense', category: 'Shopping', date: new Date(), cardId: card._id })
+
+        const { GET } = await import('./route')
+        const token = signAccessToken(userId.toString(), 'user')
+        const req = getRequest(`http://localhost/api/cards/${card._id}/summary`, token)
+        const res = await GET(req, { params: { id: card._id.toString() } })
+        const body = await res.json()
+
+        expect(body.outstanding).toBe(1000)
+        expect(body.dueDate).toBeDefined()
+        expect(body.cycleStart).toBeDefined()
+        // 1000 * 0.365 / 365 = 1 rupee/day — an exact, easy-to-check APR.
+        expect(body.dailyInterestEstimate).toBeCloseTo(1, 2)
+    })
 })
 
 describe('POST /api/cards/[id]/payments', () => {
