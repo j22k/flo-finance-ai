@@ -109,6 +109,76 @@ describe('get_card_summary / reconcile_card_statement', () => {
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.intent.mutates).toBe(false)
   })
+
+  it('get_card_summary handler returns real outstanding/cycle/interest numbers', async () => {
+    await connectDB()
+    const userId = new Types.ObjectId()
+    const card = await Card.create({ userId, name: 'Summary Test', last4: '1234', creditLimit: 10000, apr: 36.5, statementDay: new Date().getDate(), dueDaysAfterStatement: 20 })
+    await Transaction.create({ userId, title: 'Spend', amount: 1000, type: 'expense', category: 'Shopping', date: new Date(), cardId: card._id })
+
+    const intent = INTENTS.find((i) => i.name === 'get_card_summary')!
+    const result = await intent.handler({ cardName: 'Summary Test' }, userId.toString())
+
+    expect(result.success).toBe(true)
+    const data = result.result as any
+    expect(data.outstanding).toBe(1000)
+    expect(data.dueDate).toBeDefined()
+    expect(data.dailyInterestEstimate).toBeCloseTo(1, 2) // 1000 * 0.365 / 365 = 1
+  })
+
+  it('get_card_summary handler fails clearly for another user\'s card', async () => {
+    await connectDB()
+    const ownerId = new Types.ObjectId()
+    const otherUserId = new Types.ObjectId()
+    await Card.create({ userId: ownerId, name: 'Not Yours', last4: '1111', creditLimit: 1000, apr: 10, statementDay: 1, dueDaysAfterStatement: 15 })
+
+    const intent = INTENTS.find((i) => i.name === 'get_card_summary')!
+    await expect(intent.handler({ cardName: 'Not Yours' }, otherUserId.toString())).rejects.toThrow(/not found/i)
+  })
+
+  it('get_card_summary handler fails clearly for a soft-deleted card', async () => {
+    await connectDB()
+    const userId = new Types.ObjectId()
+    await Card.create({ userId, name: 'Retired', last4: '2222', creditLimit: 1000, apr: 10, statementDay: 1, dueDaysAfterStatement: 15, isActive: false })
+
+    const intent = INTENTS.find((i) => i.name === 'get_card_summary')!
+    await expect(intent.handler({ cardName: 'Retired' }, userId.toString())).rejects.toThrow(/not found/i)
+  })
+
+  it('reconcile_card_statement handler computes a positive difference when the bank figure is higher', async () => {
+    await connectDB()
+    const userId = new Types.ObjectId()
+    const card = await Card.create({ userId, name: 'Reconcile Positive', last4: '3333', creditLimit: 10000, apr: 36, statementDay: 5, dueDaysAfterStatement: 20 })
+    await Transaction.create({ userId, title: 'Spend', amount: 1000, type: 'expense', category: 'Shopping', date: new Date(), cardId: card._id })
+
+    const intent = INTENTS.find((i) => i.name === 'reconcile_card_statement')!
+    const result = await intent.handler({ cardName: 'Reconcile Positive', bankOutstanding: 1200 }, userId.toString())
+
+    expect(result.success).toBe(true)
+    expect((result.result as any).difference).toBe(200)
+  })
+
+  it('reconcile_card_statement handler computes a negative difference when the bank figure is lower', async () => {
+    await connectDB()
+    const userId = new Types.ObjectId()
+    const card = await Card.create({ userId, name: 'Reconcile Negative', last4: '4444', creditLimit: 10000, apr: 36, statementDay: 5, dueDaysAfterStatement: 20 })
+    await Transaction.create({ userId, title: 'Spend', amount: 1000, type: 'expense', category: 'Shopping', date: new Date(), cardId: card._id })
+
+    const intent = INTENTS.find((i) => i.name === 'reconcile_card_statement')!
+    const result = await intent.handler({ cardName: 'Reconcile Negative', bankOutstanding: 800 }, userId.toString())
+
+    expect(result.success).toBe(true)
+    expect((result.result as any).difference).toBe(-200)
+  })
+
+  it('reconcile_card_statement handler fails clearly for a soft-deleted card', async () => {
+    await connectDB()
+    const userId = new Types.ObjectId()
+    await Card.create({ userId, name: 'Retired Reconcile', last4: '5555', creditLimit: 1000, apr: 10, statementDay: 1, dueDaysAfterStatement: 15, isActive: false })
+
+    const intent = INTENTS.find((i) => i.name === 'reconcile_card_statement')!
+    await expect(intent.handler({ cardName: 'Retired Reconcile', bankOutstanding: 500 }, userId.toString())).rejects.toThrow(/not found/i)
+  })
 })
 
 describe('findActiveCardByName', () => {

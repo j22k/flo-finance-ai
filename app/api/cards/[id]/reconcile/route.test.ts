@@ -31,6 +31,22 @@ describe('POST /api/cards/[id]/reconcile', () => {
         expect(body.difference).toBe(200)
     })
 
+    it('computes a negative difference when the bank figure is lower than the app\'s', async () => {
+        await connectDB()
+        const userId = new Types.ObjectId()
+        const card = await Card.create({ userId, name: 'Reconcile Negative', last4: '4343', creditLimit: 10000, apr: 36, statementDay: 5, dueDaysAfterStatement: 20 })
+        await Transaction.create({ userId, title: 'Spend', amount: 1000, type: 'expense', category: 'Shopping', date: new Date(), cardId: card._id })
+
+        const { POST } = await import('./route')
+        const token = signAccessToken(userId.toString(), 'user')
+        const req = postRequest(`http://localhost/api/cards/${card._id}/reconcile`, { bankOutstanding: 800 }, token)
+        const res = await POST(req, { params: { id: card._id.toString() } })
+        const body = await res.json()
+
+        expect(body.computedOutstanding).toBe(1000)
+        expect(body.difference).toBe(-200)
+    })
+
     it('rejects a missing bankOutstanding', async () => {
         const { POST } = await import('./route')
         const token = signAccessToken(new Types.ObjectId().toString(), 'user')

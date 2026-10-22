@@ -1,9 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { Types } from 'mongoose'
-import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { signAccessToken } from '@/lib/auth'
-import { INTENTS } from '@/lib/ai/intents'
 
 vi.mock('@/lib/ai', () => ({
     chat: vi.fn(),
@@ -126,31 +124,67 @@ describe('POST /api/ai/chat', () => {
             }
         })
 
-        // get_card_summary itself doesn't exist until Task 8 — this test only
-        // proves the loop's shape (execute a read-only tool, feed the result
-        // back, call chat() again), so a throwaway read-only stub stands in
-        // for it and is removed once the test is done.
-        const stubIntent = {
-            name: 'get_card_summary',
-            description: 'test stub',
-            mutates: false,
-            schema: z.object({ cardName: z.string() }),
-            parameters: {},
-            handler: async () => { throw new Error('Card not found: Test Card') },
-        }
-        INTENTS.push(stubIntent as any)
+        const { POST } = await import('./route')
+        const token = signAccessToken(new Types.ObjectId().toString(), 'user')
+        const res = await POST(makeRequest({ messages: [{ role: 'user', content: 'how much do I owe on Test Card?' }] }, token), {})
 
-        try {
-            const { POST } = await import('./route')
-            const token = signAccessToken(new Types.ObjectId().toString(), 'user')
-            const res = await POST(makeRequest({ messages: [{ role: 'user', content: 'how much do I owe on Test Card?' }] }, token), {})
+        expect(res.status).toBe(200)
+        const text = await res.text()
+        expect(text).toContain('Your card has')
+        expect(callCount).toBe(2)
+    })
 
-            expect(res.status).toBe(200)
-            const text = await res.text()
-            expect(text).toContain('Your card has')
-            expect(callCount).toBe(2)
-        } finally {
-            INTENTS.splice(INTENTS.indexOf(stubIntent as any), 1)
-        }
+    it('feeds the tool call and its result back into the next chat() call\'s message history', async () => {
+        const { chat } = await import('@/lib/ai')
+        const callHistories: any[] = []
+        ;(chat as any).mockImplementation(async function* (messages: any) {
+            callHistories.push(messages)
+            if (callHistories.length === 1) {
+                yield { type: 'tool_call', id: 'call_1', name: 'get_card_summary', arguments: JSON.stringify({ cardName: 'Test Card' }) }
+            } else {
+                yield { type: 'text', text: 'done' }
+                yield { type: 'done' }
+            }
+        })
+
+        const { POST } = await import('./route')
+        const token = signAccessToken(new Types.ObjectId().toString(), 'user')
+        const res = await POST(makeRequest({ messages: [{ role: 'user', content: 'how much do I owe on Test Card?' }] }, token), {})
+        // Must drain the stream before asserting — the stream's internal
+        // processing runs in the background until controller.close(), and
+        // without awaiting it to completion here it can keep running into
+        // the next test and call the (by-then reassigned) mock there too.
+        await res.text()
+
+        expect(callHistories).toHaveLength(2)
+        const secondCallMessages = callHistories[1]
+        const assistantToolCallMsg = secondCallMessages.find((m: any) => m.role === 'assistant' && m.tool_calls)
+        expect(assistantToolCallMsg.tool_calls).toEqual([
+            { id: 'call_1', type: 'function', function: { name: 'get_card_summary', arguments: JSON.stringify({ cardName: 'Test Card' }) } },
+        ])
+        const toolResultMsg = secondCallMessages.find((m: any) => m.role === 'tool')
+        expect(toolResultMsg.tool_call_id).toBe('call_1')
+        // No card named "Test Card" exists for this random userId, so the
+        // real get_card_summary handler throws — the loop must feed that
+        // error back as the tool result rather than crashing.
+        expect(JSON.parse(toolResultMsg.content)).toMatchObject({ success: false, error: expect.stringContaining('not found') })
+    })
+
+    it('stops after 3 total model calls when a model keeps proposing read-only tool calls', async () => {
+        const { chat } = await import('@/lib/ai')
+        let callCount = 0
+        ;(chat as any).mockImplementation(async function* () {
+            callCount++
+            yield { type: 'tool_call', id: `call_${callCount}`, name: 'get_card_summary', arguments: JSON.stringify({ cardName: 'Test Card' }) }
+        })
+
+        const { POST } = await import('./route')
+        const token = signAccessToken(new Types.ObjectId().toString(), 'user')
+        const res = await POST(makeRequest({ messages: [{ role: 'user', content: 'how much do I owe on Test Card?' }] }, token), {})
+
+        expect(res.status).toBe(200)
+        const text = await res.text()
+        expect(text).toContain('"done":true')
+        expect(callCount).toBe(3)
     })
 })
