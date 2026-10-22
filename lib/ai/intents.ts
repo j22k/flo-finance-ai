@@ -2,12 +2,28 @@ import { z } from 'zod'
 import connectDB from '@/lib/mongodb'
 import Transaction from '@/models/Transaction'
 import Budget from '@/models/Budget'
-import Card from '@/models/Card'
+import Card, { ICard } from '@/models/Card'
 import { ActionResult } from '@/types/chat'
 import { AITool } from '@/lib/ai'
 
 function escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Case-insensitive name match, scoped to the caller's own active cards —
+// shared by every intent that resolves a card by name (record_card_payment,
+// get_card_summary, reconcile_card_statement) rather than duplicated three
+// times, since drift between three near-identical copies of "find my card"
+// is exactly the kind of bug DRY exists to prevent.
+export async function findActiveCardByName(
+    userId: string,
+    cardName: string
+): Promise<{ ok: true; card: ICard } | { ok: false; error: string }> {
+    await connectDB()
+    const matches = await Card.find({ userId, isActive: true, name: new RegExp(`^${escapeRegex(cardName)}$`, 'i') })
+    if (matches.length === 0) return { ok: false, error: `Card not found: ${cardName}` }
+    if (matches.length > 1) return { ok: false, error: `Multiple active cards are named "${cardName}" — ask the user to specify which one (e.g. by last 4 digits).` }
+    return { ok: true, card: matches[0] }
 }
 
 export interface Intent<TArgs = any> {
@@ -208,14 +224,9 @@ export const INTENTS: Intent[] = [
         handler: async (args: z.infer<typeof recordCardPaymentSchema>, userId: string) => {
             await connectDB()
             const { cardName, amount, note } = args
-            // isActive:true excludes soft-deleted cards (the user believes
-            // them gone, per the Cards page). Matching with find() instead
-            // of findOne() lets us detect and reject an ambiguous name
-            // rather than silently picking whichever duplicate sorts first.
-            const matches = await Card.find({ userId, isActive: true, name: new RegExp(`^${escapeRegex(cardName)}$`, 'i') })
-            if (matches.length === 0) throw new Error(`Card not found: ${cardName}`)
-            if (matches.length > 1) throw new Error(`Multiple active cards are named "${cardName}" — ask the user to specify which one (e.g. by last 4 digits).`)
-            const card = matches[0]
+            const resolved = await findActiveCardByName(userId, cardName)
+            if (!resolved.ok) throw new Error(resolved.error)
+            const card = resolved.card
 
             const transaction = await Transaction.create({
                 userId,

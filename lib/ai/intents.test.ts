@@ -3,7 +3,7 @@ import { Types } from 'mongoose'
 import connectDB from '@/lib/mongodb'
 import Transaction from '@/models/Transaction'
 import Card from '@/models/Card'
-import { parseIntent, INTENTS, toAITools } from './intents'
+import { parseIntent, INTENTS, toAITools, findActiveCardByName } from './intents'
 
 describe('parseIntent', () => {
   it('validates and returns args for a known intent with valid data', () => {
@@ -94,6 +94,21 @@ describe('record_card_payment handler — card resolution', () => {
     await expect(
       paymentIntent.handler({ cardName: 'Retired Card', amount: 100 }, userId.toString())
     ).rejects.toThrow(/not found/i)
+  })
+})
+
+describe('findActiveCardByName', () => {
+  it('returns the card when exactly one active match exists', async () => {
+    await connectDB()
+    const userId = new Types.ObjectId()
+    await Card.create({ userId, name: 'Unique Card', last4: '1111', creditLimit: 1000, apr: 10, statementDay: 1, dueDaysAfterStatement: 15 })
+    const result = await findActiveCardByName(userId.toString(), 'unique card')
+    expect(result.ok).toBe(true)
+  })
+
+  it('returns an error for zero matches', async () => {
+    const result = await findActiveCardByName(new Types.ObjectId().toString(), 'Nonexistent')
+    expect(result.ok).toBe(false)
   })
 })
 
