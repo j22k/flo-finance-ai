@@ -151,7 +151,7 @@ export const INTENTS: Intent[] = [
     },
     {
         name: 'reconcile_card_statement',
-        description: "Compare the app's computed outstanding balance for a card against a bank-stated figure, identified by the card's name. Read-only — does not persist anything.",
+        description: "Compare the app's computed outstanding balance for a card against a bank-stated figure, identified by the card's name. Read-only — does not persist anything. The result's difference is bankOutstanding minus the app's computed figure: positive means the bank says the user owes more than Flo has recorded, negative means less.",
         mutates: false,
         schema: reconcileCardStatementSchema,
         parameters: {
@@ -169,13 +169,20 @@ export const INTENTS: Intent[] = [
             const card = resolved.card
 
             const computedOutstanding = await computeCardOutstanding(userId, card._id as Types.ObjectId)
+            const difference = args.bankOutstanding - computedOutstanding
 
             return {
                 success: true,
                 result: {
                     computedOutstanding,
                     bankOutstanding: args.bankOutstanding,
-                    difference: args.bankOutstanding - computedOutstanding,
+                    difference,
+                    differenceMeaning:
+                        difference > 0
+                            ? `The bank's figure is ₹${difference} higher than what Flo has recorded.`
+                            : difference < 0
+                                ? `The bank's figure is ₹${Math.abs(difference)} lower than what Flo has recorded.`
+                                : "The bank's figure matches what Flo has recorded.",
                 },
             }
         },

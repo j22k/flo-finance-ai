@@ -156,6 +156,9 @@ describe('get_card_summary / reconcile_card_statement', () => {
 
     expect(result.success).toBe(true)
     expect((result.result as any).difference).toBe(200)
+    // The LLM only sees this result as JSON — an unlabeled signed number is
+    // ambiguous about which way it runs, so the result must spell it out.
+    expect((result.result as any).differenceMeaning).toMatch(/bank/i)
   })
 
   it('reconcile_card_statement handler computes a negative difference when the bank figure is lower', async () => {
