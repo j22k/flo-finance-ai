@@ -1,17 +1,41 @@
+import { Types } from 'mongoose'
+import { startOfDay } from 'date-fns'
 import connectDB from './mongodb'
 import Card from '@/models/Card'
 import User from '@/models/User'
+import Transaction from '@/models/Transaction'
 import { computeCardCycle } from './cardCycle'
 import { sendEmail } from './email'
 
 function daysUntil(target: Date, from: Date): number {
     const msPerDay = 24 * 60 * 60 * 1000
-    return Math.ceil((target.getTime() - from.getTime()) / msPerDay)
+    return Math.round((target.getTime() - from.getTime()) / msPerDay)
+}
+
+// Same spends-minus-payments aggregation used by the summary/reconcile
+// routes and the AI intents — a card with nothing owed shouldn't generate
+// due-soon reminders forever.
+async function computeOutstanding(userId: Types.ObjectId, cardId: Types.ObjectId): Promise<number> {
+    const result = await Transaction.aggregate([
+        {
+            $match: {
+                userId,
+                cardId,
+                type: { $in: ['expense', 'card_payment'] },
+            },
+        },
+        { $group: { _id: '$type', total: { $sum: '$amount' } } },
+    ])
+    const totals = new Map(result.map((r) => [r._id as string, r.total as number]))
+    const spends = totals.get('expense') || 0
+    const payments = totals.get('card_payment') || 0
+    return spends - payments
 }
 
 export async function checkAndSendCardDueReminders(date: Date = new Date()) {
     await connectDB()
 
+    const today = startOfDay(date)
     const cards = await Card.find({ isActive: true })
 
     let checked = 0
@@ -20,7 +44,7 @@ export async function checkAndSendCardDueReminders(date: Date = new Date()) {
     for (const card of cards) {
         checked++
 
-        const { dueDate } = computeCardCycle(card, date)
+        const { dueDate } = computeCardCycle(card, today)
 
         // A stale remindersForDueDate (from a prior cycle) means the due date
         // has rolled over since the last check — reset all three flags so
@@ -32,11 +56,24 @@ export async function checkAndSendCardDueReminders(date: Date = new Date()) {
             card.reminder0SentAt = null
         }
 
-        const daysLeft = daysUntil(dueDate, date)
+        const outstanding = await computeOutstanding(card.userId, card._id as Types.ObjectId)
+        const daysLeft = daysUntil(dueDate, today)
+
+        // Nothing owed: a card sitting at zero or a credit balance would
+        // otherwise get "payment due" reminders forever.
+        //
+        // daysLeft < -1: the due date is more than a day in the past — this
+        // happens for roughly a third of every cycle (between the due date
+        // and the next statement), so treating every negative daysLeft as
+        // "due now" would fire an immediate reminder for an already-stale
+        // date on every card's first check. A 1-day grace still catches a
+        // due-today reminder that a missed cron run pushed slightly late.
         let threshold: 0 | 2 | 5 | null = null
-        if (daysLeft <= 0 && !card.reminder0SentAt) threshold = 0
-        else if (daysLeft <= 2 && !card.reminder2SentAt) threshold = 2
-        else if (daysLeft <= 5 && !card.reminder5SentAt) threshold = 5
+        if (outstanding > 0 && daysLeft >= -1) {
+            if (daysLeft <= 0 && !card.reminder0SentAt) threshold = 0
+            else if (daysLeft <= 2 && !card.reminder2SentAt) threshold = 2
+            else if (daysLeft <= 5 && !card.reminder5SentAt) threshold = 5
+        }
 
         if (threshold !== null) {
             const user = await User.findById(card.userId)
