@@ -13,7 +13,12 @@ const reconcileSchema = z.object({
 export const POST = withAuth(
     async (req: NextRequest, { params, userId }: { params: { id: string }; userId: string }) => {
         try {
-            const body = await req.json()
+            let body: unknown
+            try {
+                body = await req.json()
+            } catch {
+                return NextResponse.json({ error: 'Invalid JSON body' }, { status: 422 })
+            }
             const validation = reconcileSchema.safeParse(body)
 
             if (!validation.success) {

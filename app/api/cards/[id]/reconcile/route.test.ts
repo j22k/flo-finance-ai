@@ -54,4 +54,16 @@ describe('POST /api/cards/[id]/reconcile', () => {
         const res = await POST(req, { params: { id: new Types.ObjectId().toString() } })
         expect(res.status).toBe(422)
     })
+
+    it('rejects a malformed JSON body with 422, not 500', async () => {
+        const { POST } = await import('./route')
+        const token = signAccessToken(new Types.ObjectId().toString(), 'user')
+        const req = new NextRequest('http://localhost/api/cards/x/reconcile', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: '{"bankOutstanding": ', // truncated, invalid JSON
+        })
+        const res = await POST(req, { params: { id: new Types.ObjectId().toString() } })
+        expect(res.status).toBe(422)
+    })
 })
