@@ -45,6 +45,11 @@ export interface CardSummary {
   outstanding: number
   availableLimit: number
   usagePercent: number
+  cycleStart: string
+  cycleEnd: string
+  statementDate: string
+  dueDate: string
+  dailyInterestEstimate: number
 }
 
 export interface DashboardStats {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Trash2, Plus, X, CreditCard, Wallet, Pencil } from 'lucide-react'
+import { format, differenceInCalendarDays } from 'date-fns'
 import { Card, CardSummary } from '@/types'
 
 interface CardTileProps {
@@ -23,6 +24,7 @@ export default function CardTile({ card, summary, onDelete, onRecordPayment, onE
 
     const progressColor = usagePercent > 85 ? 'progress-red' : usagePercent > 60 ? 'progress-yellow' : 'progress-green'
     const statusColor = usagePercent > 85 ? 'var(--expense)' : usagePercent > 60 ? 'var(--warning)' : 'var(--income)'
+    const dueInDays = summary ? differenceInCalendarDays(new Date(summary.dueDate), new Date()) : null
 
     const handleRecordPayment = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -95,6 +97,17 @@ export default function CardTile({ card, summary, onDelete, onRecordPayment, onE
                     {usagePercent}%
                 </span>
             </div>
+
+            {summary && (
+                <div style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '0.78rem', color: dueInDays !== null && dueInDays <= 2 ? 'var(--expense)' : 'var(--muted)', fontWeight: dueInDays !== null && dueInDays <= 2 ? 600 : 400 }}>
+                        Due {format(new Date(summary.dueDate), 'MMM d')}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                        ~₹{summary.dailyInterestEstimate.toFixed(2)}/day interest (estimate)
+                    </div>
+                </div>
+            )}
 
             <button
                 onClick={() => setShowModal(true)}
