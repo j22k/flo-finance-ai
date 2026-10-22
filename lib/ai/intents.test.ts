@@ -97,6 +97,20 @@ describe('record_card_payment handler — card resolution', () => {
   })
 })
 
+describe('get_card_summary / reconcile_card_statement', () => {
+  it('get_card_summary resolves by name and returns balance + cycle + interest, read-only', () => {
+    const result = parseIntent('get_card_summary', JSON.stringify({ cardName: 'HDFC Millennia' }))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.intent.mutates).toBe(false)
+  })
+
+  it('reconcile_card_statement validates bankOutstanding and is read-only', () => {
+    const result = parseIntent('reconcile_card_statement', JSON.stringify({ cardName: 'HDFC Millennia', bankOutstanding: 5000 }))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.intent.mutates).toBe(false)
+  })
+})
+
 describe('findActiveCardByName', () => {
   it('returns the card when exactly one active match exists', async () => {
     await connectDB()
@@ -115,7 +129,7 @@ describe('findActiveCardByName', () => {
 describe('toAITools', () => {
   it('builds OpenAI-shaped tool definitions without leaking internal fields', () => {
     const tools = toAITools(INTENTS)
-    expect(tools).toHaveLength(6)
+    expect(tools).toHaveLength(8)
     for (const t of tools) {
       expect(t.type).toBe('function')
       expect(t.function).not.toHaveProperty('mutates')

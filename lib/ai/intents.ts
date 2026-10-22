@@ -1,10 +1,12 @@
 import { z } from 'zod'
+import { Types } from 'mongoose'
 import connectDB from '@/lib/mongodb'
 import Transaction from '@/models/Transaction'
 import Budget from '@/models/Budget'
 import Card, { ICard } from '@/models/Card'
 import { ActionResult } from '@/types/chat'
 import { AITool } from '@/lib/ai'
+import { computeCardCycle } from '@/lib/cardCycle'
 
 function escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -80,7 +82,104 @@ const recordCardPaymentSchema = z.object({
     note: z.string().optional(),
 })
 
+const getCardSummarySchema = z.object({
+    cardName: z.string().min(1),
+})
+
+const reconcileCardStatementSchema = z.object({
+    cardName: z.string().min(1),
+    bankOutstanding: z.number(),
+})
+
+// Same spends-minus-payments aggregation as app/api/cards/[id]/summary/route.ts
+// and app/api/cards/[id]/reconcile/route.ts — small duplication across those
+// routes and these two intents is acceptable (different response shapes,
+// same precedent set by record_card_payment vs. the /payments route), but
+// sharing it between the two intents below, which need the exact same
+// number, avoids duplicating it a third time in this one file.
+async function computeCardOutstanding(userId: string, cardId: Types.ObjectId): Promise<number> {
+    const result = await Transaction.aggregate([
+        {
+            $match: {
+                userId: new Types.ObjectId(userId),
+                cardId,
+                type: { $in: ['expense', 'card_payment'] },
+            },
+        },
+        { $group: { _id: '$type', total: { $sum: '$amount' } } },
+    ])
+    const totals = new Map(result.map((r) => [r._id as string, r.total as number]))
+    const spends = totals.get('expense') || 0
+    const payments = totals.get('card_payment') || 0
+    return spends - payments
+}
+
 export const INTENTS: Intent[] = [
+    {
+        name: 'get_card_summary',
+        description: "Get a credit card's current outstanding balance, available limit, statement cycle, due date, and estimated daily interest, identified by the card's name. Read-only.",
+        mutates: false,
+        schema: getCardSummarySchema,
+        parameters: {
+            type: 'object',
+            properties: {
+                cardName: { type: 'string' },
+            },
+            required: ['cardName'],
+        },
+        handler: async (args: z.infer<typeof getCardSummarySchema>, userId: string) => {
+            await connectDB()
+            const resolved = await findActiveCardByName(userId, args.cardName)
+            if (!resolved.ok) throw new Error(resolved.error)
+            const card = resolved.card
+
+            const outstanding = await computeCardOutstanding(userId, card._id as Types.ObjectId)
+            const cycle = computeCardCycle(card, new Date())
+            const dailyInterestEstimate = (Math.max(0, outstanding) * (card.apr / 100)) / 365
+
+            return {
+                success: true,
+                result: {
+                    outstanding,
+                    availableLimit: Math.max(0, card.creditLimit - outstanding),
+                    usagePercent: Math.round((outstanding / card.creditLimit) * 100),
+                    ...cycle,
+                    dailyInterestEstimate,
+                },
+            }
+        },
+    },
+    {
+        name: 'reconcile_card_statement',
+        description: "Compare the app's computed outstanding balance for a card against a bank-stated figure, identified by the card's name. Read-only — does not persist anything.",
+        mutates: false,
+        schema: reconcileCardStatementSchema,
+        parameters: {
+            type: 'object',
+            properties: {
+                cardName: { type: 'string' },
+                bankOutstanding: { type: 'number', description: "The outstanding balance as reported by the user's bank/statement" },
+            },
+            required: ['cardName', 'bankOutstanding'],
+        },
+        handler: async (args: z.infer<typeof reconcileCardStatementSchema>, userId: string) => {
+            await connectDB()
+            const resolved = await findActiveCardByName(userId, args.cardName)
+            if (!resolved.ok) throw new Error(resolved.error)
+            const card = resolved.card
+
+            const computedOutstanding = await computeCardOutstanding(userId, card._id as Types.ObjectId)
+
+            return {
+                success: true,
+                result: {
+                    computedOutstanding,
+                    bankOutstanding: args.bankOutstanding,
+                    difference: args.bankOutstanding - computedOutstanding,
+                },
+            }
+        },
+    },
     {
         name: 'add_transaction',
         description: 'Create a new income or expense transaction for the user.',

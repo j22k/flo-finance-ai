@@ -17,6 +17,6 @@ export interface ChatAction {
 
 export interface ActionResult {
     success: boolean
-    result?: Transaction | Budget | Card | { message: string }
+    result?: Transaction | Budget | Card | { message: string } | Record<string, unknown>
     error?: string
 }
