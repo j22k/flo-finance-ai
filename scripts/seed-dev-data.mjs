@@ -78,14 +78,18 @@ async function seed() {
     console.log("Cleared this user's previous seed data")
 
     // --- Card (created first so transactions below can reference its _id) ---
+    // statementDay pinned to today's day-of-month + dueDaysAfterStatement of
+    // 3 puts the computed due date 3 days from whenever this script last ran
+    // — close enough to exercise the due-reminder cron manually, far enough
+    // out not to already be overdue by the time anyone reads the output.
     const cardResult = await db.collection('cards').insertOne({
         userId,
         name: 'HDFC Millennia',
         last4: '4242',
         creditLimit: 50000,
         apr: 36,
-        statementDay: 5,
-        dueDaysAfterStatement: 20,
+        statementDay: now.getDate(),
+        dueDaysAfterStatement: 3,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
