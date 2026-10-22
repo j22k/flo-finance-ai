@@ -9,6 +9,10 @@ export interface ICard extends Document {
     statementDay: number
     dueDaysAfterStatement: number
     isActive: boolean
+    remindersForDueDate?: Date | null
+    reminder5SentAt?: Date | null
+    reminder2SentAt?: Date | null
+    reminder0SentAt?: Date | null
     createdAt: Date
     updatedAt: Date
 }
@@ -55,6 +59,10 @@ const cardSchema = new Schema<ICard>(
             type: Boolean,
             default: true,
         },
+        remindersForDueDate: { type: Date, default: null },
+        reminder5SentAt: { type: Date, default: null },
+        reminder2SentAt: { type: Date, default: null },
+        reminder0SentAt: { type: Date, default: null },
     },
     {
         timestamps: true,
