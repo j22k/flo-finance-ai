@@ -70,6 +70,15 @@ api.interceptors.response.use(
                 processQueue(refreshError, null)
                 setAccessToken(null)
                 if (typeof window !== 'undefined') {
+                    // A failed refresh means the httpOnly refreshToken cookie
+                    // is stale, but client JS can't clear an httpOnly cookie
+                    // itself — only a server Set-Cookie can. Without this,
+                    // middleware.ts (which only checks whether the cookie
+                    // exists, not whether it's valid) bounces every request
+                    // to /login straight back to /dashboard, which fails the
+                    // same refresh again: an infinite redirect loop that
+                    // looks like the page endlessly reloading.
+                    await axios.post('/api/auth/logout', {}, { withCredentials: true }).catch(() => {})
                     window.location.href = '/login'
                 }
                 return Promise.reject(refreshError)

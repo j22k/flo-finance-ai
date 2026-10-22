@@ -36,6 +36,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return payload.userId
         } catch {
             handleSetToken(null)
+            // A failed refresh leaves a stale httpOnly refreshToken cookie in
+            // place (client JS can't clear it itself) — middleware.ts only
+            // checks whether that cookie exists, not whether it's valid, so
+            // without clearing it server-side, the next /login visit gets
+            // bounced straight back to /dashboard, which fails the same
+            // refresh again. See lib/api.ts's interceptor for the same fix.
+            await axios.post('/api/auth/logout', {}, { withCredentials: true }).catch(() => {})
             return null
         }
     }, [handleSetToken])
@@ -66,6 +73,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
             } catch {
                 handleSetToken(null)
+                // Same stale-cookie fix as tryRefresh() above — clear it
+                // server-side so middleware.ts stops treating this session
+                // as logged in.
+                await axios.post('/api/auth/logout', {}, { withCredentials: true }).catch(() => {})
             } finally {
                 setLoading(false)
             }

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl
 
-    const protectedRoutes = ['/dashboard', '/transactions', '/budgets', '/analytics']
+    const protectedRoutes = ['/dashboard', '/transactions', '/budgets', '/analytics', '/cards', '/goals', '/recurring']
     const isProtected = protectedRoutes.some(route => pathname.startsWith(route))
     const isAuthPage = pathname === '/login' || pathname === '/register'
 
@@ -23,5 +23,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/dashboard/:path*', '/transactions/:path*', '/budgets/:path*', '/analytics/:path*', '/login', '/register'],
+    matcher: ['/dashboard/:path*', '/transactions/:path*', '/budgets/:path*', '/analytics/:path*', '/cards/:path*', '/goals/:path*', '/recurring/:path*', '/login', '/register'],
 }
