@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import connectDB from '@/lib/mongodb'
 import { generateDueRecurringTransactions } from '@/lib/recurringGenerator'
 import { checkAndSendBudgetAlerts } from '@/lib/budgetAlerts'
+import { checkAndSendCardDueReminders } from '@/lib/cardAlerts'
 
 export async function GET(req: NextRequest) {
     const authHeader = req.headers.get('authorization')
@@ -13,9 +14,10 @@ export async function GET(req: NextRequest) {
         await connectDB()
 
         const now = new Date()
-        const [recurringResult, alertResult] = await Promise.allSettled([
+        const [recurringResult, alertResult, cardReminderResult] = await Promise.allSettled([
             generateDueRecurringTransactions(now),
             checkAndSendBudgetAlerts(now),
+            checkAndSendCardDueReminders(now),
         ])
 
         // Promise.allSettled never rejects, so a failed branch wouldn't
@@ -26,11 +28,15 @@ export async function GET(req: NextRequest) {
         if (alertResult.status === 'rejected') {
             console.error('Daily cron: budget alert check failed:', alertResult.reason)
         }
+        if (cardReminderResult.status === 'rejected') {
+            console.error('Daily cron: card due-reminder check failed:', cardReminderResult.reason)
+        }
 
         return NextResponse.json({
             message: 'Daily cron completed',
             recurring: recurringResult.status === 'fulfilled' ? recurringResult.value : { error: String(recurringResult.reason) },
             budgetAlerts: alertResult.status === 'fulfilled' ? alertResult.value : { error: String(alertResult.reason) },
+            cardReminders: cardReminderResult.status === 'fulfilled' ? cardReminderResult.value : { error: String(cardReminderResult.reason) },
         })
     } catch (error) {
         console.error('Daily cron error:', error)
