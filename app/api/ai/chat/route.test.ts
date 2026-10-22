@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { Types } from 'mongoose'
+import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { signAccessToken } from '@/lib/auth'
+import { INTENTS } from '@/lib/ai/intents'
 
 vi.mock('@/lib/ai', () => ({
     chat: vi.fn(),
@@ -109,5 +111,46 @@ describe('POST /api/ai/chat', () => {
         )
 
         errorSpy.mockRestore()
+    })
+
+    it('executes a read-only tool call immediately, feeds the result back, and continues streaming text', async () => {
+        const { chat } = await import('@/lib/ai')
+        let callCount = 0
+        ;(chat as any).mockImplementation(async function* () {
+            callCount++
+            if (callCount === 1) {
+                yield { type: 'tool_call', id: 'call_1', name: 'get_card_summary', arguments: JSON.stringify({ cardName: 'Test Card' }) }
+            } else {
+                yield { type: 'text', text: 'Your card has ₹1000 outstanding.' }
+                yield { type: 'done' }
+            }
+        })
+
+        // get_card_summary itself doesn't exist until Task 8 — this test only
+        // proves the loop's shape (execute a read-only tool, feed the result
+        // back, call chat() again), so a throwaway read-only stub stands in
+        // for it and is removed once the test is done.
+        const stubIntent = {
+            name: 'get_card_summary',
+            description: 'test stub',
+            mutates: false,
+            schema: z.object({ cardName: z.string() }),
+            parameters: {},
+            handler: async () => { throw new Error('Card not found: Test Card') },
+        }
+        INTENTS.push(stubIntent as any)
+
+        try {
+            const { POST } = await import('./route')
+            const token = signAccessToken(new Types.ObjectId().toString(), 'user')
+            const res = await POST(makeRequest({ messages: [{ role: 'user', content: 'how much do I owe on Test Card?' }] }, token), {})
+
+            expect(res.status).toBe(200)
+            const text = await res.text()
+            expect(text).toContain('Your card has')
+            expect(callCount).toBe(2)
+        } finally {
+            INTENTS.splice(INTENTS.indexOf(stubIntent as any), 1)
+        }
     })
 })

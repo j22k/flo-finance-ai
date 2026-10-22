@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/middleware'
-import { chat, AIMessage } from '@/lib/ai'
+import { chat, AIMessage, AIStreamChunk } from '@/lib/ai'
 import { INTENTS, toAITools, parseIntent } from '@/lib/ai/intents'
 import { buildFinancialContext } from '@/lib/financialContext'
 import connectDB from '@/lib/mongodb'
@@ -75,36 +75,81 @@ Today's date: ${todayDate}
         const streamIter = chat(aiMessages, toAITools(INTENTS))
         const firstResult = await streamIter.next()
 
+        // Read-only tool calls (mutates:false) execute immediately and feed
+        // their result back to the model instead of ending the stream —
+        // bounded so a model that keeps calling tools can't loop forever.
+        const MAX_ROUND_TRIPS = 3
+
         const encoder = new TextEncoder()
         const readable = new ReadableStream({
             async start(controller) {
-                try {
-                    let result = firstResult
+                async function processStream(
+                    iter: AsyncGenerator<AIStreamChunk>,
+                    first: IteratorResult<AIStreamChunk>,
+                    history: AIMessage[],
+                    roundTrip: number
+                ): Promise<void> {
+                    let result = first
                     while (!result.done) {
                         const chunk = result.value
                         if (chunk.type === 'text') {
                             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: chunk.text })}\n\n`))
                         } else if (chunk.type === 'tool_call') {
                             const parsed = parseIntent(chunk.name, chunk.arguments)
-                            if (parsed.ok) {
-                                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, action: { type: chunk.name, data: parsed.args } })}\n\n`))
-                            } else {
+                            if (!parsed.ok) {
                                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, error: parsed.error })}\n\n`))
+                                return
                             }
-                            // The chat UI acts on one action at a time (each needs its
-                            // own confirm card). lib/ai.ts asks Groq for
-                            // parallel_tool_calls:false so the model shouldn't propose
-                            // more than one, but if it ever does anyway, log it loudly
-                            // instead of silently dropping the rest.
-                            const next = await streamIter.next()
-                            if (!next.done) {
-                                console.error('Chat API: model proposed additional tool call(s) beyond the first, which were dropped:', next.value)
+
+                            if (parsed.intent.mutates) {
+                                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, action: { type: chunk.name, data: parsed.args } })}\n\n`))
+                                // The chat UI acts on one action at a time (each needs its
+                                // own confirm card). lib/ai.ts asks Groq for
+                                // parallel_tool_calls:false so the model shouldn't propose
+                                // more than one, but if it ever does anyway, log it loudly
+                                // instead of silently dropping the rest.
+                                const next = await iter.next()
+                                if (!next.done) {
+                                    console.error('Chat API: model proposed additional tool call(s) beyond the first, which were dropped:', next.value)
+                                }
+                                return
                             }
-                            return
+
+                            // Read-only: execute now, feed the result back, continue.
+                            let toolResult: unknown
+                            try {
+                                toolResult = await parsed.intent.handler(parsed.args, userId)
+                            } catch (e: any) {
+                                toolResult = { success: false, error: e.message }
+                            }
+
+                            history.push({
+                                role: 'assistant',
+                                content: '',
+                                tool_calls: [{ id: chunk.id, type: 'function', function: { name: chunk.name, arguments: chunk.arguments } }],
+                            })
+                            history.push({
+                                role: 'tool',
+                                tool_call_id: chunk.id,
+                                content: JSON.stringify(toolResult),
+                            })
+
+                            if (roundTrip >= MAX_ROUND_TRIPS) {
+                                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
+                                return
+                            }
+
+                            const nextIter = chat(history, toAITools(INTENTS))
+                            const nextFirst = await nextIter.next()
+                            return processStream(nextIter, nextFirst, history, roundTrip + 1)
                         }
-                        result = await streamIter.next()
+                        result = await iter.next()
                     }
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
+                }
+
+                try {
+                    await processStream(streamIter, firstResult, aiMessages, 1)
                 } catch (e) {
                     console.error('Streaming error:', e)
                     // Always flush a done event, even on failure, so the frontend's
