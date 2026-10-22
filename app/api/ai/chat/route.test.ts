@@ -187,4 +187,43 @@ describe('POST /api/ai/chat', () => {
         expect(text).toContain('"done":true')
         expect(callCount).toBe(3)
     })
+
+    it('tells the user when the tool-loop cap is hit instead of ending silently', async () => {
+        const { chat } = await import('@/lib/ai')
+        ;(chat as any).mockImplementation(async function* () {
+            yield { type: 'tool_call', id: 'call_x', name: 'get_card_summary', arguments: JSON.stringify({ cardName: 'Test Card' }) }
+        })
+
+        const { POST } = await import('./route')
+        const token = signAccessToken(new Types.ObjectId().toString(), 'user')
+        const res = await POST(makeRequest({ messages: [{ role: 'user', content: 'how much do I owe on Test Card?' }] }, token), {})
+        const text = await res.text()
+
+        const deltas = Array.from(text.matchAll(/data: ({.*?})\n\n/g)).map((m) => JSON.parse(m[1]))
+        expect(deltas.some((d) => typeof d.delta === 'string' && d.delta.length > 0)).toBe(true)
+    })
+
+    it('preserves text the model said before calling a read-only tool, in the history sent back to it', async () => {
+        const { chat } = await import('@/lib/ai')
+        const callHistories: any[] = []
+        ;(chat as any).mockImplementation(async function* (messages: any) {
+            callHistories.push(messages)
+            if (callHistories.length === 1) {
+                yield { type: 'text', text: 'Let me check that for you.' }
+                yield { type: 'tool_call', id: 'call_1', name: 'get_card_summary', arguments: JSON.stringify({ cardName: 'Test Card' }) }
+            } else {
+                yield { type: 'text', text: 'done' }
+                yield { type: 'done' }
+            }
+        })
+
+        const { POST } = await import('./route')
+        const token = signAccessToken(new Types.ObjectId().toString(), 'user')
+        const res = await POST(makeRequest({ messages: [{ role: 'user', content: 'how much do I owe on Test Card?' }] }, token), {})
+        await res.text()
+
+        const secondCallMessages = callHistories[1]
+        const assistantToolCallMsg = secondCallMessages.find((m: any) => m.role === 'assistant' && m.tool_calls)
+        expect(assistantToolCallMsg.content).toBe('Let me check that for you.')
+    })
 })

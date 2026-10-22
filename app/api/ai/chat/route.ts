@@ -90,9 +90,16 @@ Today's date: ${todayDate}
                     roundTrip: number
                 ): Promise<void> {
                     let result = first
+                    // Text the model streams before deciding to call a tool
+                    // (e.g. "Let me check that for you.") is shown to the
+                    // user as it arrives, but was previously lost when
+                    // building the tool-call history message below — track
+                    // it so that message's content reflects what was said.
+                    let textBeforeToolCall = ''
                     while (!result.done) {
                         const chunk = result.value
                         if (chunk.type === 'text') {
+                            textBeforeToolCall += chunk.text
                             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: chunk.text })}\n\n`))
                         } else if (chunk.type === 'tool_call') {
                             const parsed = parseIntent(chunk.name, chunk.arguments)
@@ -125,7 +132,7 @@ Today's date: ${todayDate}
 
                             history.push({
                                 role: 'assistant',
-                                content: '',
+                                content: textBeforeToolCall,
                                 tool_calls: [{ id: chunk.id, type: 'function', function: { name: chunk.name, arguments: chunk.arguments } }],
                             })
                             history.push({
@@ -135,6 +142,7 @@ Today's date: ${todayDate}
                             })
 
                             if (roundTrip >= MAX_ROUND_TRIPS) {
+                                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: "I wasn't able to finish looking that up — please try asking again." })}\n\n`))
                                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
                                 return
                             }
