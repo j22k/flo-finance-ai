@@ -1,8 +1,16 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import connectDB from './mongodb'
 import Card from '@/models/Card'
 import User from '@/models/User'
 import { checkAndSendCardDueReminders } from './cardAlerts'
+
+// sendEmail hits the real Resend API when RESEND_API_KEY is set (it is, in
+// .env.local) — without mocking it, a test that actually crosses a reminder
+// threshold makes a real network call, which is slow enough to time out
+// under a full-suite run and sends real email to a fake address either way.
+vi.mock('./email', () => ({
+    sendEmail: vi.fn().mockResolvedValue({ success: true }),
+}))
 
 describe('checkAndSendCardDueReminders', () => {
     // checkAndSendCardDueReminders scans every active card with no userId
