@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Flo Finance AI
 
-## Getting Started
+Flo is an AI-powered personal finance platform for tracking spending, planning budgets, monitoring goals, and getting context-aware guidance from an intelligent finance assistant.
 
-First, run the development server:
+## What it does
+
+- Track transactions, spending categories, recurring expenses, and financial cards.
+- Set budgets and goals, then review progress through dashboard analytics.
+- Generate monthly reports and due-date reminders.
+- Ask the finance assistant questions about your own financial data.
+- Protect account access with JWT-based authentication and refresh-token rotation.
+
+## Stack
+
+- **Frontend:** Next.js 14, React, TypeScript, Tailwind CSS, Recharts
+- **Backend:** Next.js API routes, MongoDB with Mongoose
+- **AI and services:** Groq, Resend
+- **Testing:** Vitest and MongoDB Memory Server
+
+## Run locally
+
+### Prerequisites
+
+- Node.js 18+
+- MongoDB Atlas or a local MongoDB instance
+- A Groq API key for the finance assistant
+- A Resend API key if email reports or reminders are enabled
+
+### Setup
+
+```bash
+git clone https://github.com/j22k/flo-finance-ai.git
+cd flo-finance-ai
+npm install
+cp .env.local.example .env.local
+```
+
+Fill in `MONGODB_URI`, `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`, and the service keys in `.env.local`, then start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Verification
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+```bash
+npm test
+npm run build
+```
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+This is an active portfolio project; credentials and deployment configuration are intentionally kept outside the repository.
